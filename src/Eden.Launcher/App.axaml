@@ -1,0 +1,62 @@
+<Application
+  xmlns="https://github.com/avaloniaui"
+  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+  x:Class="Eden.Launcher.App"
+  RequestedThemeVariant="Dark"
+>
+  <Application.Styles>
+    <FluentTheme />
+    <Style Selector="Window">
+      <Setter Property="FontFamily" Value="avares://Avalonia.Fonts.Inter/Assets#Inter" />
+      <Setter Property="Background" Value="#101112" />
+    </Style>
+    <Style Selector="TextBlock">
+      <Setter Property="Foreground" Value="#E5EDF5" />
+    </Style>
+    <Style Selector="TextBlock.muted">
+      <Setter Property="Foreground" Value="#91A1B6" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Foreground" Value="#91A1B6" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Margin" Value="0,0,0,6" />
+    </Style>
+    <Style Selector="TextBox">
+      <Setter Property="Background" Value="#1C2024" />
+      <Setter Property="BorderBrush" Value="#454A50" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="12,10" />
+    </Style>
+    <Style Selector="Button">
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="16,10" />
+    </Style>
+    <Style Selector="Button.primary">
+      <Setter Property="Background" Value="#59C7CF" />
+      <Setter Property="Foreground" Value="#08151C" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="#101927" />
+      <Setter Property="BorderBrush" Value="#22324A" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="22" />
+    </Style>
+    <Style Selector="Button.nav">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="FontWeight" Value="Medium" />
+      <Setter Property="Padding" Value="22,12" />
+    </Style>
+    <Style Selector="ListBoxItem">
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,5" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#304C5050" />
+      <Setter Property="BorderBrush" Value="#59C7CF" />
+      <Setter Property="BorderThickness" Value="2,0,0,0" />
+    </Style>
+  </Application.Styles>
+</Application>

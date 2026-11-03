@@ -1,0 +1,13 @@
+**/bin/
+**/obj/
+**/TestResults/
+.idea/
+.vs/
+artifacts/
+*.user
+
+# Local EVE catalog, save, and Python importer cache
+*.sqlite
+*.sqlite-*
+eve-online-static-data-*-jsonl.zip
+__pycache__/

@@ -1,0 +1,16 @@
+[
+  {
+    "file": "eve-background.jpg",
+    "url": "https://web.ccpgamescdn.com/aws/eveonline/images/COW_BG.jpg",
+    "sha256": "d4ccd05339c4d3bf3e547672acb4eda3afec4db7d05164cfea81a97797905ab1",
+    "source_page": "https://www.eveonline.com/",
+    "copyright": "CCP Games / EVE Online. All rights reserved."
+  },
+  {
+    "file": "eve-feature.jpg",
+    "url": "https://web.ccpgamescdn.com/aws/eveonline/images/cow_hero_mobile.jpg",
+    "sha256": "cd2459c73b90f6e3432a826f63c6cdcf4521c1d2d8dee5b8090b99aca1c4f75b",
+    "source_page": "https://www.eveonline.com/",
+    "copyright": "CCP Games / EVE Online. All rights reserved."
+  }
+]
