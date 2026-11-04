@@ -4,6 +4,8 @@ Windows desktop launcher for [Eden](https://github.com/CJ-SPT/Eden), written in 
 
 The launcher prepares an isolated build 3662168 client, creates standard or invitation-protected developer accounts, signs in, optionally remembers accounts, and launches against local or remote servers. The layout follows the EVE launcher: navigation rail, reserved news column, account cards, game panel, and connection status. Server news delivery is intentionally deferred.
 
+The account header contains **Add account**. Compact cards highlight the selected account, with **Sign out** below the list and launch-group controls together underneath. The wider game panel shows the selected account and running-client count above the full-width **Play** button. Client preparation remains in **Client settings**; the extra preparation shortcut appears only while setup is needed.
+
 ## Run
 
 Extract the Windows x64 release ZIP and open `Eden.Desktop.exe`. No separate .NET installation is required for the published build.

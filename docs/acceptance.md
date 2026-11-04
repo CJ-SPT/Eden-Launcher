@@ -1,6 +1,22 @@
 # Launcher v1 verification
 
-Automated results and native-client observations are recorded separately. Computer Use was stopped by the user with Escape before the final gameplay checks.
+Automated results, launcher UI checks and native-client observations are recorded separately. The historical native-client checks below were stopped by the user with Escape before final gameplay acceptance.
+
+## Layout cleanup — November 4, 2026
+
+Narrowed the navigation/news/accounts columns to give the game panel more room. Account cards now use a compact two-line layout with an unobstructed selection indicator; Add account sits in the section header and Sign out is a smaller secondary action. Launch-group creation, selection and actions fit together without scrolling with the two saved accounts. The selected account and running count sit above the centered, full-width Play button. The artwork adapts to available height, and the duplicate client-preparation shortcut hides once a client is ready.
+
+### Automated validation
+
+Tool and solution restores, Release build (zero warnings/errors; 1.30 seconds), all **30 launcher tests** (`dotnet test --no-build -c Release`, 770 ms), formatting verification (.NET style, CSharpier **26 files**, 140-character policy) and diff checks passed. Existing headless tests cover account/launch readiness and group-control bindings. This change adds no gameplay or account-management behavior.
+
+### Live acceptance
+
+Used the Computer Use skill to inspect the rebuilt launcher at its normal **1420 × 820** size and maximized **2560 × 1392** size. Both saved accounts, group selection/actions/status, account context, Play and footer were visible without clipping or an account-column scrollbar. Switching account cards updated the selection and Play context. Opened and closed the existing group editor without saving changes, then restored the original selected account and normal window size. No game client was launched.
+
+### Optional maintainer checks
+
+- Inspect the layout at the minimum window size and other display scaling settings; these were not exercised interactively.
 
 ## Launch groups — November 4, 2026
 

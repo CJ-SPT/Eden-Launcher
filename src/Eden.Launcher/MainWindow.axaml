@@ -13,7 +13,43 @@
   WindowDecorations="None"
   WindowStartupLocation="CenterScreen"
 >
-  <Grid RowDefinitions="52,*,58" ColumnDefinitions="84,*">
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="Foreground" Value="#A6AFB6" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="LetterSpacing" Value="1.5" />
+    </Style>
+    <Style Selector="Button.secondary">
+      <Setter Property="Background" Value="#182024" />
+      <Setter Property="BorderBrush" Value="#354147" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="12,8" />
+    </Style>
+    <Style Selector="Button.compact">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Padding" Value="10,8" />
+      <Setter Property="MinHeight" Value="34" />
+    </Style>
+    <Style Selector="ListBox.accounts ListBoxItem">
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+    <Style Selector="ListBox.accounts ListBoxItem /template/ ContentPresenter">
+      <Setter Property="Background" Value="#A00D1216" />
+      <Setter Property="BorderBrush" Value="#2C373D" />
+      <Setter Property="BorderThickness" Value="2,0,0,0" />
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="ListBox.accounts ListBoxItem:pointerover /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1B2A30" />
+    </Style>
+    <Style Selector="ListBox.accounts ListBoxItem:selected /template/ ContentPresenter">
+      <Setter Property="Background" Value="#1B3036" />
+      <Setter Property="BorderBrush" Value="#59C7CF" />
+    </Style>
+  </Window.Styles>
+  <Grid RowDefinitions="52,*,50" ColumnDefinitions="72,*">
     <Border Grid.ColumnSpan="2" Background="#111111">
       <Grid ColumnDefinitions="120,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto">
         <Border Background="Transparent" PointerPressed="DragWindow">
@@ -39,7 +75,7 @@
     </Border>
     <Border Grid.Row="1" Grid.RowSpan="2" Background="#0E0F10">
       <Grid RowDefinitions="Auto,Auto,*,Auto">
-        <Button Classes="nav" Click="OpenNews" Padding="0" Height="100" HorizontalAlignment="Stretch">
+        <Button Classes="nav" Click="OpenNews" Padding="0" Height="88" HorizontalAlignment="Stretch">
           <StackPanel Spacing="9" HorizontalAlignment="Center">
             <TextBlock Text="≡" FontSize="32" HorizontalAlignment="Center" />
             <TextBlock Text="EDEN" Foreground="#59C7CF" FontSize="11" HorizontalAlignment="Center" />
@@ -50,7 +86,7 @@
           Classes="nav"
           Command="{Binding OpenSettingsCommand}"
           Padding="0"
-          Height="90"
+          Height="76"
           HorizontalAlignment="Stretch"
           AutomationProperties.Name="Client and server settings"
         >
@@ -76,55 +112,65 @@
           </LinearGradientBrush>
         </Border.Background>
       </Border>
-      <Grid ColumnDefinitions="260,340,*" ColumnSpacing="28" Margin="28,30,28,20">
+      <Grid ColumnDefinitions="200,300,*" ColumnSpacing="24" Margin="28,24,28,24">
         <StackPanel Spacing="20">
-          <TextBlock Text="NEWS" FontSize="11" Foreground="#A6AFB6" LetterSpacing="1.5" />
-          <Border Height="1" Background="#373D41" />
-          <StackPanel Spacing="10" Margin="0,12,0,0">
-            <TextBlock Text="No news yet" FontSize="18" Foreground="#BDC5CA" />
+          <Border Height="48" BorderBrush="#303A3F" BorderThickness="0,0,0,1">
+            <TextBlock Text="NEWS" Classes="section" VerticalAlignment="Center" />
+          </Border>
+          <StackPanel Spacing="8" Margin="0,4,0,0">
+            <TextBlock Text="No news yet" FontSize="16" Foreground="#BDC5CA" />
             <TextBlock
               Text="Server news and announcements will appear here."
               Classes="muted"
               TextWrapping="Wrap"
               FontSize="12"
-              LineHeight="21"
+              LineHeight="20"
             />
           </StackPanel>
         </StackPanel>
-        <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
-          <StackPanel Spacing="18">
-            <Grid ColumnDefinitions="*,Auto">
-              <TextBlock Text="ACCOUNTS" Foreground="#A6AFB6" FontSize="11" LetterSpacing="1.5" />
-              <TextBlock Grid.Column="1" Text="{Binding ServerName}" Foreground="#59C7CF" FontSize="11" />
-            </Grid>
+        <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+          <StackPanel Spacing="14">
+            <Border Height="48" BorderBrush="#303A3F" BorderThickness="0,0,0,1">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Text="ACCOUNTS" Classes="section" VerticalAlignment="Center" />
+                <Button
+                  Grid.Column="1"
+                  Content="+ Add account"
+                  Command="{Binding OpenAccountCommand}"
+                  Classes="nav compact"
+                  Foreground="#72DDE2"
+                  IsEnabled="{Binding CanWork}"
+                />
+              </Grid>
+            </Border>
             <ListBox
+              Classes="accounts"
               ItemsSource="{Binding Accounts}"
               SelectedItem="{Binding SelectedAccount}"
               Background="Transparent"
               BorderThickness="0"
-              MaxHeight="280"
+              MaxHeight="264"
+              Padding="0"
               IsEnabled="{Binding CanWork}"
               AutomationProperties.Name="Accounts"
             >
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="core:SavedAccount">
-                  <Border Background="#D50A0C0F" Padding="18,20" MinHeight="115" BorderBrush="#45494C" BorderThickness="2,0,0,0">
-                    <Grid ColumnDefinitions="54,*,Auto" ColumnSpacing="14">
-                      <Border Background="#1E3035" Width="52" Height="64">
+                  <Border Padding="14,16" MinHeight="80">
+                    <Grid ColumnDefinitions="44,*" ColumnSpacing="12">
+                      <Border Background="#264149" Width="44" Height="44" CornerRadius="3">
                         <TextBlock
                           Text="{Binding Initial}"
                           Foreground="#72DDE2"
-                          FontSize="28"
+                          FontSize="22"
                           HorizontalAlignment="Center"
                           VerticalAlignment="Center"
                         />
                       </Border>
-                      <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding UserName}" FontWeight="Medium" Foreground="#71D9DE" FontSize="15" />
-                        <TextBlock Text="{Binding Caption}" Classes="muted" FontSize="9" />
-                        <TextBlock Text="Characters managed in game" Classes="muted" FontSize="10" />
+                      <StackPanel Grid.Column="1" Spacing="6" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding UserName}" FontWeight="SemiBold" FontSize="14" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Caption}" Classes="muted" FontSize="10" />
                       </StackPanel>
-                      <TextBlock Grid.Column="2" Text="◇" Foreground="#A8B5BB" FontSize="19" VerticalAlignment="Top" />
                     </Grid>
                   </Border>
                 </DataTemplate>
@@ -149,27 +195,21 @@
               </StackPanel>
             </Border>
             <Button
-              Content="⊕  ADD ACCOUNT"
-              Command="{Binding OpenAccountCommand}"
-              HorizontalAlignment="Center"
-              Classes="nav"
-              BorderBrush="#525659"
-              BorderThickness="1"
-              FontSize="12"
-              IsEnabled="{Binding CanWork}"
-            />
-            <TextBlock Text="{Binding AccountStatus}" TextWrapping="Wrap" Classes="muted" FontSize="12" />
-            <Button
-              Content="Sign out of selected account"
+              Content="Sign out"
               Command="{Binding SignOutCommand}"
               IsVisible="{Binding IsSignedIn}"
-              Classes="nav"
-              FontSize="11"
-              HorizontalAlignment="Left"
+              Classes="nav compact"
+              Foreground="#A6AFB6"
+              HorizontalAlignment="Right"
               IsEnabled="{Binding CanWork}"
+              ToolTip.Tip="Sign out of the selected account"
+              Margin="0,-8,0,0"
             />
-            <Border Height="1" Background="#373D41" />
-            <TextBlock Text="LAUNCH GROUPS" Foreground="#A6AFB6" FontSize="11" LetterSpacing="1.5" />
+            <Border Height="1" Background="#303A3F" Margin="0,2,0,0" />
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="LAUNCH GROUPS" Classes="section" VerticalAlignment="Center" />
+              <Button Grid.Column="1" Content="+ New group" Command="{Binding NewGroupCommand}" Classes="nav compact" />
+            </Grid>
             <ComboBox
               ItemsSource="{Binding Groups}"
               SelectedItem="{Binding SelectedGroup}"
@@ -178,20 +218,19 @@
               IsEnabled="{Binding CanWork}"
               AutomationProperties.Name="Launch group"
             />
-            <StackPanel Orientation="Horizontal" Spacing="8">
-              <Button Content="New group" Command="{Binding NewGroupCommand}" />
-              <Button Content="Edit" Command="{Binding EditGroupCommand}" />
-              <Button Content="Delete" Command="{Binding DeleteGroupCommand}" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
               <Button
                 Content="Launch group"
                 Command="{Binding LaunchGroupCommand}"
-                Classes="primary"
+                Classes="primary compact"
+                HorizontalAlignment="Stretch"
+                HorizontalContentAlignment="Center"
                 AutomationProperties.Name="Launch selected group"
               />
-              <Button Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding IsBusy}" />
-            </StackPanel>
+              <Button Grid.Column="1" Content="Edit" Command="{Binding EditGroupCommand}" Classes="secondary compact" />
+              <Button Grid.Column="2" Content="Delete" Command="{Binding DeleteGroupCommand}" Classes="secondary compact" />
+            </Grid>
+            <Button Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding IsBusy}" Classes="secondary compact" />
             <TextBlock Text="{Binding GroupStatus}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
             <ItemsControl ItemsSource="{Binding GroupResults}">
               <ItemsControl.ItemTemplate>
@@ -202,21 +241,21 @@
             </ItemsControl>
           </StackPanel>
         </ScrollViewer>
-        <StackPanel Grid.Column="2" Spacing="24">
-          <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="8">
-            <TextBlock Text="Eden" FontSize="16" FontWeight="Medium" />
-            <TextBlock Grid.Row="1" Text="{Binding ReadyStatus}" Foreground="#59C7CF" FontSize="12" />
+        <Grid Grid.Column="2" RowDefinitions="Auto,*,Auto,Auto" RowSpacing="20">
+          <Grid ColumnDefinitions="*,Auto" Height="48">
+            <StackPanel Spacing="5" VerticalAlignment="Center">
+              <TextBlock Text="Eden" FontSize="16" FontWeight="SemiBold" />
+              <TextBlock Text="{Binding ReadyStatus}" Foreground="#72DDE2" FontSize="12" />
+            </StackPanel>
             <Button
               Grid.Column="1"
-              Grid.RowSpan="2"
               Content="Client settings"
-              Classes="nav"
-              FontSize="11"
+              Classes="secondary compact"
+              VerticalAlignment="Center"
               Command="{Binding OpenSettingsCommand}"
             />
           </Grid>
-          <Border Height="1" Background="#47494A" Margin="0,-8,0,-8" />
-          <Grid Height="285" ClipToBounds="True">
+          <Grid Grid.Row="1" MinHeight="180" ClipToBounds="True">
             <Border>
               <Border.Background>
                 <ImageBrush Source="/Assets/eve-feature.jpg" Stretch="UniformToFill" AlignmentY="Top" />
@@ -234,52 +273,57 @@
               <TextBlock Text="E D E N" FontSize="42" FontWeight="Light" LetterSpacing="5" />
             </StackPanel>
           </Grid>
-          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="18" Margin="0,-10,0,0">
+          <StackPanel Grid.Row="2" Spacing="12">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+              <TextBlock Text="{Binding SelectedAccountName}" FontSize="14" FontWeight="Medium" TextTrimming="CharacterEllipsis" />
+              <TextBlock
+                Grid.Column="1"
+                Text="{Binding RunningCount, StringFormat='Clients running: {0}'}"
+                Classes="muted"
+                FontSize="12"
+                VerticalAlignment="Center"
+              />
+            </Grid>
             <Button
               Content="{Binding PlayLabel}"
               Command="{Binding PrimaryActionCommand}"
               Classes="primary"
               HorizontalAlignment="Stretch"
+              HorizontalContentAlignment="Center"
               Height="54"
               FontSize="16"
               IsEnabled="{Binding CanWork}"
               AutomationProperties.Name="Play"
             />
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" MaxWidth="180" Spacing="5">
-              <TextBlock Text="{Binding SelectedAccountName}" FontSize="12" TextTrimming="CharacterEllipsis" />
-              <TextBlock Text="{Binding RunningCount, StringFormat='Clients running: {0}'}" Classes="muted" FontSize="10" />
-            </StackPanel>
-          </Grid>
-          <StackPanel Spacing="12" Margin="0,8,0,0">
-            <TextBlock Text="A universe of possibility" FontSize="18" FontWeight="Medium" />
+          </StackPanel>
+          <StackPanel Grid.Row="3" Spacing="8">
+            <TextBlock Text="A universe of possibility" FontSize="17" FontWeight="Medium" />
             <TextBlock
               Text="Choose your origin. Build your first ship. Set a course for something new. Your Eden story starts with you."
               TextWrapping="Wrap"
-              FontSize="14"
-              LineHeight="26"
-              Foreground="#C1C6C9"
+              FontSize="13"
+              LineHeight="22"
+              Classes="muted"
             />
             <Button
               Content="PREPARE YOUR CLIENT"
               Command="{Binding OpenSettingsCommand}"
-              Classes="nav"
-              BorderBrush="#525659"
-              BorderThickness="1"
+              Classes="secondary compact"
               HorizontalAlignment="Left"
-              FontSize="11"
-              Margin="0,8,0,0"
+              IsVisible="{Binding !ClientReady}"
+              Margin="0,4,0,0"
             />
           </StackPanel>
-        </StackPanel>
+        </Grid>
       </Grid>
     </Grid>
     <Border Grid.Row="2" Grid.Column="1" Background="#0C0E10" Padding="28,0">
-      <Grid RowDefinitions="3,*" ColumnDefinitions="*,Auto">
+      <Grid RowDefinitions="2,*" ColumnDefinitions="*,Auto">
         <ProgressBar
           Grid.ColumnSpan="2"
           Value="{Binding PreparationPercent}"
           Maximum="100"
-          Height="3"
+          Height="2"
           Background="#35383C"
           Foreground="#59C7CF"
         />
