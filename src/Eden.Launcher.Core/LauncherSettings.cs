@@ -19,10 +19,18 @@ public sealed record SavedAccount(string ServerProfileId, long AccountId, string
     public string Caption => Developer ? "DEVELOPER ACCOUNT" : "EDEN ACCOUNT";
 }
 
+public sealed record LaunchGroup(string Id, string ServerProfileId, string Name, IReadOnlyList<long> AccountIds)
+{
+    public const int MaximumNameLength = 80;
+
+    public override string ToString() => Name;
+}
+
 public sealed record LauncherSettings(
     IReadOnlyList<ServerProfile> Servers,
     string SelectedServerId,
-    IReadOnlyList<SavedAccount>? Accounts = null
+    IReadOnlyList<SavedAccount>? Accounts = null,
+    IReadOnlyList<LaunchGroup>? Groups = null
 )
 {
     public static LauncherSettings Default()

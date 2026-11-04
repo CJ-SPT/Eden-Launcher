@@ -15,6 +15,14 @@ Extract the Windows x64 release ZIP and open `Eden.Desktop.exe`. No separate .NE
 
 The server runs separately. See [server setup](docs/server-setup.md) and [acceptance results](docs/acceptance.md).
 
+## Launch groups
+
+In the account column, under **Launch groups**, choose **New group**, give it a name, select its accounts, and save. Choose the saved group and press **Launch group** to start its accounts one after another using the current server profile's verified client. Use **Edit** to rename the group or change its members; **Delete** removes only the group.
+
+Groups are saved separately for each server profile. Add and sign in to each account first; enable **Remember me** to keep group launching available after restarting the launcher. Active sign-ins also work without Remember me during the current launcher session. Groups never store passwords or tokens.
+
+Already-running accounts are skipped. Each account gets its own launch ticket and client settings. An account that needs sign-in or fails to start is listed below the group controls while the other accounts continue. Sign in to any accounts that need attention, then launch the group again; clients already running will be skipped. **Cancel** stops pending launches and leaves clients already started open. The selected account and the individual **Play** button continue to work independently.
+
 ## Build and verify
 
 Install SDK **10.0.403** and Python 3.11 or newer. From this repository:

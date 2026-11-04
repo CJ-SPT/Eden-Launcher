@@ -2,6 +2,26 @@
 
 Automated results and native-client observations are recorded separately. Computer Use was stopped by the user with Escape before the final gameplay checks.
 
+## Launch groups — November 4, 2026
+
+### Automated validation
+
+- Tool restore and solution restore passed. Release build passed with zero warnings or errors (1.73 seconds).
+- Formatting verification passed: .NET style, CSharpier, and the Python 140-character policy check (5.40 seconds combined).
+- Focused tests: **23 passed**, no failures or skips (803 ms reported test duration). Filter: `FullyQualifiedName~GroupLaunchTests|FullyQualifiedName~ViewModelTests|FullyQualifiedName~ApiAndLaunchTests`, run with `dotnet test --no-build -c Release --filter`.
+- Coverage includes creating/editing/deleting groups, settings reopen and older-settings compatibility, server isolation, account-selection preservation, cached and renewed sessions, refresh-token rotation, incorrect account identity, missing/expired credentials, repeated launches, already-running accounts, missing group members, ticket/network/process failures, timeouts, cancellation between accounts and during a ticket request, and Avalonia headless control bindings and readiness gating.
+- Group tests use isolated settings and fake APIs/client launchers; no game process is started. No full .NET regression suite was requested or run. The existing preparation and TLS suites were outside this focused test run.
+
+### Live acceptance
+
+Not performed; agent client testing is disabled. Native rendering, input, concurrent game windows, and gameplay feel remain unverified for this change. Historical observations below predate launch groups.
+
+### Optional maintainer checks
+
+- Create a group with two remembered accounts, restart the launcher, and launch it; confirm both native clients open with their own settings.
+- Launch the same group again, then cancel a fresh group launch; confirm existing clients stay open and queued clients stop.
+- Check the group editor and results at the minimum window size and your normal display scaling.
+
 ## Automated
 
 - November 4 password minimum update: the account form now advertises 6–128 characters. Release build, four focused `Eden.Launcher.Tests.ViewModelTests` cases, and formatting checks passed. The registration flow forwards a six-character password. The first Debug build was blocked by the open desktop executable; the successful Release checks used a separate output. No full regression suite or native client acceptance was performed for this update. The server's 21 focused launcher tests cover registration/password-change boundaries, reopen/sign-in and HTTP behavior.

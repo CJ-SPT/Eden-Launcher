@@ -8,11 +8,13 @@ namespace Eden.Launcher;
 
 public partial class MainViewModel : ObservableObject
 {
+    private const int SessionRefreshLeadSeconds = 30;
     private readonly ISettingsStore _settings;
     private readonly ICredentialStore _credentials;
     private readonly IClientInstallation _installation;
     private readonly IClientLauncher _launcher;
     private readonly Func<string, ILauncherApiClient> _apiFactory;
+    private readonly ClientBuild _build;
     private SessionReply? _session;
     private ServerReply? _server;
     private CancellationTokenSource? _operation;
@@ -123,7 +125,8 @@ public partial class MainViewModel : ObservableObject
         ICredentialStore credentials,
         IClientInstallation installation,
         IClientLauncher launcher,
-        Func<string, ILauncherApiClient>? apiFactory = null
+        Func<string, ILauncherApiClient>? apiFactory = null,
+        ClientBuild? clientBuild = null
     )
     {
         _settings = settings;
@@ -131,6 +134,7 @@ public partial class MainViewModel : ObservableObject
         _installation = installation;
         _launcher = launcher;
         _apiFactory = apiFactory ?? (address => new LauncherApiClient(address));
+        _build = clientBuild ?? new ClientBuild();
         _launcher.Changed += () => Dispatcher.UIThread.Post(() => RunningCount = _launcher.RunningCount);
     }
 
@@ -143,6 +147,7 @@ public partial class MainViewModel : ObservableObject
             {
                 var settings = await _settings.LoadAsync();
                 _savedAccounts.AddRange(settings.Accounts ?? []);
+                _savedGroups.AddRange(settings.Groups ?? []);
                 foreach (var server in settings.Servers)
                 {
                     Servers.Add(server);
@@ -197,6 +202,7 @@ public partial class MainViewModel : ObservableObject
             Accounts.Add(account);
         }
         OnPropertyChanged(nameof(HasAccounts));
+        LoadGroups();
         ClientReady = false;
         if (!_loading)
         {
@@ -223,6 +229,8 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CanWork));
         OnPropertyChanged(nameof(CanEditAccount));
         OnPropertyChanged(nameof(PlayLabel));
+        NewGroupCommand.NotifyCanExecuteChanged();
+        SaveGroupCommand.NotifyCanExecuteChanged();
         RefreshPlay();
     }
 
@@ -254,6 +262,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(PlayLabel));
         OnPropertyChanged(nameof(ReadyStatus));
         PlayCommand.NotifyCanExecuteChanged();
+        RefreshGroups();
     }
 
     partial void OnSelectedAccountChanged(SavedAccount? value)
@@ -277,7 +286,10 @@ public partial class MainViewModel : ObservableObject
                 await ConnectCoreAsync(cancellation);
             }
             string key = ApiAddress + "\n" + account.AccountId;
-            if (_sessions.TryGetValue(key, out var cached) && cached.ExpiresAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 30)
+            if (
+                _sessions.TryGetValue(key, out var cached)
+                && cached.ExpiresAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + SessionRefreshLeadSeconds
+            )
             {
                 await AcceptSessionAsync(cached);
                 return;
@@ -410,7 +422,7 @@ public partial class MainViewModel : ObservableObject
         {
             _updatingProfile = false;
         }
-        await _settings.SaveAsync(new(Servers.ToArray(), profile.Id, _savedAccounts.ToArray()));
+        await _settings.SaveAsync(new(Servers.ToArray(), profile.Id, _savedAccounts.ToArray(), _savedGroups.ToArray()));
     }
 
     [RelayCommand]
@@ -532,13 +544,13 @@ public partial class MainViewModel : ObservableObject
         RunAsync(async cancellation =>
         {
             using var api = _apiFactory(ApiAddress);
-            if (_session!.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() + 30)
+            if (_session!.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() + SessionRefreshLeadSeconds)
             {
                 string refresh =
                     _credentials.Read(ApiAddress, UserName) ?? throw new InvalidOperationException("Please sign out and sign in again.");
                 await AcceptSessionAsync(await api.RefreshAsync(refresh, cancellation));
             }
-            byte[] prefix = ClientBuild.ReadManifestPrefix(ClientRoot);
+            byte[] prefix = _build.ReadPrefix(ClientRoot);
             var launch = await api.LaunchAsync(_session.AccessToken, new(ClientBuild.Number, Convert.ToBase64String(prefix)), cancellation);
             await _launcher.LaunchAsync(ClientRoot, _server!, _session, launch, cancellation);
             RunningCount = _launcher.RunningCount;
@@ -568,16 +580,7 @@ public partial class MainViewModel : ObservableObject
                 ? "Operation cancelled. You can resume preparation later."
                 : "The server timed out.";
         }
-        catch (Exception error)
-            when (error
-                    is IOException
-                        or InvalidDataException
-                        or InvalidOperationException
-                        or ArgumentException
-                        or System.Security.Cryptography.CryptographicException
-                        or HttpRequestException
-                        or LauncherApiException
-            )
+        catch (Exception error) when (IsOperationError(error))
         {
             IsError = true;
             Status = error is HttpRequestException ? "Could not reach the server. Check its address and certificate." : error.Message;
@@ -588,4 +591,14 @@ public partial class MainViewModel : ObservableObject
             IsBusy = false;
         }
     }
+
+    private static bool IsOperationError(Exception error) =>
+        error
+            is IOException
+                or InvalidDataException
+                or InvalidOperationException
+                or ArgumentException
+                or System.Security.Cryptography.CryptographicException
+                or HttpRequestException
+                or LauncherApiException;
 }

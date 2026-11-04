@@ -91,77 +91,117 @@
             />
           </StackPanel>
         </StackPanel>
-        <StackPanel Grid.Column="1" Spacing="18">
-          <Grid ColumnDefinitions="*,Auto">
-            <TextBlock Text="ACCOUNTS" Foreground="#A6AFB6" FontSize="11" LetterSpacing="1.5" />
-            <TextBlock Grid.Column="1" Text="{Binding ServerName}" Foreground="#59C7CF" FontSize="11" />
-          </Grid>
-          <ListBox
-            ItemsSource="{Binding Accounts}"
-            SelectedItem="{Binding SelectedAccount}"
-            Background="Transparent"
-            BorderThickness="0"
-            MaxHeight="425"
-            IsEnabled="{Binding CanWork}"
-            AutomationProperties.Name="Accounts"
-          >
-            <ListBox.ItemTemplate>
-              <DataTemplate x:DataType="core:SavedAccount">
-                <Border Background="#D50A0C0F" Padding="18,20" MinHeight="115" BorderBrush="#45494C" BorderThickness="2,0,0,0">
-                  <Grid ColumnDefinitions="54,*,Auto" ColumnSpacing="14">
-                    <Border Background="#1E3035" Width="52" Height="64">
-                      <TextBlock
-                        Text="{Binding Initial}"
-                        Foreground="#72DDE2"
-                        FontSize="28"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                      />
-                    </Border>
-                    <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Center">
-                      <TextBlock Text="{Binding UserName}" FontWeight="Medium" Foreground="#71D9DE" FontSize="15" />
-                      <TextBlock Text="{Binding Caption}" Classes="muted" FontSize="9" />
-                      <TextBlock Text="Characters managed in game" Classes="muted" FontSize="10" />
-                    </StackPanel>
-                    <TextBlock Grid.Column="2" Text="◇" Foreground="#A8B5BB" FontSize="19" VerticalAlignment="Top" />
-                  </Grid>
-                </Border>
-              </DataTemplate>
-            </ListBox.ItemTemplate>
-          </ListBox>
-          <Border IsVisible="{Binding !HasAccounts}" Background="#C00C1013" BorderBrush="#43494D" BorderThickness="2,0,0,0" Padding="24,30">
-            <StackPanel Spacing="14">
-              <TextBlock Text="Your story begins here." FontSize="20" />
-              <TextBlock
-                Text="Add your first Eden account to start exploring."
-                Classes="muted"
-                TextWrapping="Wrap"
-                FontSize="13"
-                LineHeight="20"
-              />
+        <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="18">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="ACCOUNTS" Foreground="#A6AFB6" FontSize="11" LetterSpacing="1.5" />
+              <TextBlock Grid.Column="1" Text="{Binding ServerName}" Foreground="#59C7CF" FontSize="11" />
+            </Grid>
+            <ListBox
+              ItemsSource="{Binding Accounts}"
+              SelectedItem="{Binding SelectedAccount}"
+              Background="Transparent"
+              BorderThickness="0"
+              MaxHeight="280"
+              IsEnabled="{Binding CanWork}"
+              AutomationProperties.Name="Accounts"
+            >
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="core:SavedAccount">
+                  <Border Background="#D50A0C0F" Padding="18,20" MinHeight="115" BorderBrush="#45494C" BorderThickness="2,0,0,0">
+                    <Grid ColumnDefinitions="54,*,Auto" ColumnSpacing="14">
+                      <Border Background="#1E3035" Width="52" Height="64">
+                        <TextBlock
+                          Text="{Binding Initial}"
+                          Foreground="#72DDE2"
+                          FontSize="28"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                        />
+                      </Border>
+                      <StackPanel Grid.Column="1" Spacing="10" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding UserName}" FontWeight="Medium" Foreground="#71D9DE" FontSize="15" />
+                        <TextBlock Text="{Binding Caption}" Classes="muted" FontSize="9" />
+                        <TextBlock Text="Characters managed in game" Classes="muted" FontSize="10" />
+                      </StackPanel>
+                      <TextBlock Grid.Column="2" Text="◇" Foreground="#A8B5BB" FontSize="19" VerticalAlignment="Top" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <Border
+              IsVisible="{Binding !HasAccounts}"
+              Background="#C00C1013"
+              BorderBrush="#43494D"
+              BorderThickness="2,0,0,0"
+              Padding="24,30"
+            >
+              <StackPanel Spacing="14">
+                <TextBlock Text="Your story begins here." FontSize="20" />
+                <TextBlock
+                  Text="Add your first Eden account to start exploring."
+                  Classes="muted"
+                  TextWrapping="Wrap"
+                  FontSize="13"
+                  LineHeight="20"
+                />
+              </StackPanel>
+            </Border>
+            <Button
+              Content="⊕  ADD ACCOUNT"
+              Command="{Binding OpenAccountCommand}"
+              HorizontalAlignment="Center"
+              Classes="nav"
+              BorderBrush="#525659"
+              BorderThickness="1"
+              FontSize="12"
+              IsEnabled="{Binding CanWork}"
+            />
+            <TextBlock Text="{Binding AccountStatus}" TextWrapping="Wrap" Classes="muted" FontSize="12" />
+            <Button
+              Content="Sign out of selected account"
+              Command="{Binding SignOutCommand}"
+              IsVisible="{Binding IsSignedIn}"
+              Classes="nav"
+              FontSize="11"
+              HorizontalAlignment="Left"
+              IsEnabled="{Binding CanWork}"
+            />
+            <Border Height="1" Background="#373D41" />
+            <TextBlock Text="LAUNCH GROUPS" Foreground="#A6AFB6" FontSize="11" LetterSpacing="1.5" />
+            <ComboBox
+              ItemsSource="{Binding Groups}"
+              SelectedItem="{Binding SelectedGroup}"
+              PlaceholderText="Choose a launch group"
+              HorizontalAlignment="Stretch"
+              IsEnabled="{Binding CanWork}"
+              AutomationProperties.Name="Launch group"
+            />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button Content="New group" Command="{Binding NewGroupCommand}" />
+              <Button Content="Edit" Command="{Binding EditGroupCommand}" />
+              <Button Content="Delete" Command="{Binding DeleteGroupCommand}" />
             </StackPanel>
-          </Border>
-          <Button
-            Content="⊕  ADD ACCOUNT"
-            Command="{Binding OpenAccountCommand}"
-            HorizontalAlignment="Center"
-            Classes="nav"
-            BorderBrush="#525659"
-            BorderThickness="1"
-            FontSize="12"
-            IsEnabled="{Binding CanWork}"
-          />
-          <TextBlock Text="{Binding AccountStatus}" TextWrapping="Wrap" Classes="muted" FontSize="12" />
-          <Button
-            Content="Sign out of selected account"
-            Command="{Binding SignOutCommand}"
-            IsVisible="{Binding IsSignedIn}"
-            Classes="nav"
-            FontSize="11"
-            HorizontalAlignment="Left"
-            IsEnabled="{Binding CanWork}"
-          />
-        </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Button
+                Content="Launch group"
+                Command="{Binding LaunchGroupCommand}"
+                Classes="primary"
+                AutomationProperties.Name="Launch selected group"
+              />
+              <Button Content="Cancel" Command="{Binding CancelCommand}" IsVisible="{Binding IsBusy}" />
+            </StackPanel>
+            <TextBlock Text="{Binding GroupStatus}" Classes="muted" FontSize="12" TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding GroupResults}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Text="{Binding}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,8" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </ScrollViewer>
         <StackPanel Grid.Column="2" Spacing="24">
           <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto" RowSpacing="8">
             <TextBlock Text="Eden" FontSize="16" FontWeight="Medium" />
@@ -338,6 +378,51 @@
                 </StackPanel>
               </StackPanel>
             </Expander>
+            <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#82D5D8" FontSize="12" />
+          </StackPanel>
+        </ScrollViewer>
+      </Border>
+    </Border>
+    <Border Grid.RowSpan="3" Grid.ColumnSpan="2" Background="#D9000000" IsVisible="{Binding ShowGroupDialog}">
+      <Border
+        Background="#161B20"
+        BorderBrush="#4C555D"
+        BorderThickness="1"
+        Width="520"
+        MaxHeight="650"
+        HorizontalAlignment="Center"
+        VerticalAlignment="Center"
+        Padding="28"
+      >
+        <ScrollViewer>
+          <StackPanel Spacing="16">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Text="Launch group" FontSize="24" />
+              <Button Grid.Column="1" Content="×" Classes="nav" Command="{Binding CloseGroupCommand}" />
+            </Grid>
+            <TextBlock Text="{Binding ServerName}" Foreground="#59C7CF" FontSize="12" />
+            <TextBox
+              Text="{Binding GroupName}"
+              MaxLength="80"
+              PlaceholderText="Group name"
+              IsEnabled="{Binding CanWork}"
+              AutomationProperties.Name="Group name"
+            />
+            <TextBlock
+              Text="Choose accounts to launch together. Remember me keeps them ready after restarting the launcher."
+              Classes="muted"
+              FontSize="12"
+              TextWrapping="Wrap"
+            />
+            <TextBlock Text="Add accounts before creating a group." IsVisible="{Binding !HasAccounts}" TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding GroupAccounts}" IsEnabled="{Binding CanWork}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="local:GroupAccountChoice">
+                  <CheckBox Content="{Binding Account.UserName}" IsChecked="{Binding Included}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <Button Content="Save group" Command="{Binding SaveGroupCommand}" Classes="primary" />
             <TextBlock Text="{Binding Status}" TextWrapping="Wrap" Foreground="#82D5D8" FontSize="12" />
           </StackPanel>
         </ScrollViewer>

@@ -6,6 +6,7 @@ public interface IClientLauncher
 {
     int RunningCount { get; }
     event Action? Changed;
+    bool IsRunning(string serverId, long accountId);
     Task LaunchAsync(string root, ServerReply server, SessionReply session, LaunchReply launch, CancellationToken cancellation);
 }
 
@@ -14,10 +15,21 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
     private readonly SemaphoreSlim _gate = new(1);
     private readonly List<RunningClient> _clients = [];
     private readonly Dictionary<string, InstallationLock> _leases = new(StringComparer.OrdinalIgnoreCase);
+    private RunningClient[] _running = [];
     public int RunningCount { get; private set; }
     public event Action? Changed;
 
     private sealed record RunningClient(Process Process, string Root, string ServerId, long AccountId, IGatewayRelay Relay);
+
+    public bool IsRunning(string serverId, long accountId) =>
+        Volatile.Read(ref _running).Any(client => client.ServerId == serverId && client.AccountId == accountId);
+
+    private void NotifyChanged()
+    {
+        Volatile.Write(ref _running, _clients.ToArray());
+        RunningCount = _clients.Count;
+        Changed?.Invoke();
+    }
 
     public async Task LaunchAsync(string root, ServerReply server, SessionReply session, LaunchReply launch, CancellationToken cancellation)
     {
@@ -68,8 +80,7 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
                     ?? throw new IOException("The game client could not start.");
                 var running = new RunningClient(process, root, server.ServerId, session.AccountId, relay);
                 _clients.Add(running);
-                RunningCount = _clients.Count;
-                Changed?.Invoke();
+                NotifyChanged();
                 _ = MonitorAsync(running);
             }
             catch
@@ -167,8 +178,7 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
                 _leases[client.Root].Dispose();
                 _leases.Remove(client.Root);
             }
-            RunningCount = _clients.Count;
-            Changed?.Invoke();
+            NotifyChanged();
         }
         finally
         {

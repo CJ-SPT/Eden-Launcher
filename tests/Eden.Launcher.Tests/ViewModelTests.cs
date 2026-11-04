@@ -133,6 +133,9 @@ public sealed class ViewModelTests
     private sealed class Launcher : IClientLauncher
     {
         public int RunningCount => 0;
+
+        public bool IsRunning(string serverId, long accountId) => false;
+
         public event Action? Changed
         {
             add { }
