@@ -10,7 +10,7 @@ Extract the Windows x64 release ZIP and open `Eden.Desktop.exe`. No separate .NE
 
 1. Open **Settings**, enter the Eden launcher API address, and choose **Connect**. The local default is `http://127.0.0.1:26002`.
 2. Select a prepared Eden client containing `tq` and `ResFiles`, then choose **Use this client**. Alternatively, expand **Prepare a new Eden client**, choose the pinned source and an empty destination, and prepare the copy. Other EVE builds are rejected.
-3. Choose **Add account**, sign in or create an account, and optionally select **Remember me**. Developer accounts require the server operator's invitation code.
+3. Choose **Add account**, sign in or create an account with a 6–128 character password, and optionally select **Remember me**. Developer accounts require the server operator's invitation code.
 4. Choose the account card and press **Play**. Create characters in the game. Closing the launcher window while games run keeps their gateway connections alive in the system tray. Exit after closing the games.
 
 The server runs separately. See [server setup](docs/server-setup.md) and [acceptance results](docs/acceptance.md).

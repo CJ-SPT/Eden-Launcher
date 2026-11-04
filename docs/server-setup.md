@@ -50,6 +50,6 @@ The native client requires a cleartext loopback gateway override. The launcher r
 
 API v1 provides server metadata, account registration, sessions, refresh, logout and launch tickets. Launcher access tokens last 15 minutes; optional remembered sessions rotate and expire after 30 days. A replayed refresh token revokes its family. Game tickets are single-use and expire after 180 seconds. Token hashes and credentials are stored in additive `Launcher*` tables in the world database, independent of gameplay migration numbering.
 
-The server uses ASP.NET Core's versioned password hasher with 210,000 iterations. Passwords must contain 12–128 characters. Usernames contain 3–32 ASCII letters, digits, spaces, dots, underscores or hyphens and are unique without case distinctions. New accounts have no characters and three available slots.
+The server uses ASP.NET Core's versioned password hasher with 210,000 iterations. Passwords must contain 6–128 characters. Usernames contain 3–32 ASCII letters, digits, spaces, dots, underscores or hyphens and are unique without case distinctions. New accounts have no characters and three available slots.
 
 The API returns no-store responses and throttles registration/sign-in. Signing is restricted to the verified build's exact manifest prefix. Private signing keys remain in the server's Windows key store. Existing development tickets require explicit `--development-login` on both the server and preparation command, with loopback-only hosting.

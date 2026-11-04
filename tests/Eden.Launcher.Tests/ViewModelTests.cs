@@ -25,7 +25,7 @@ public sealed class ViewModelTests
         await model.InitializeAsync();
         Assert.False(model.CanPlay);
         model.UserName = "Developer";
-        model.Password = "a long test password";
+        model.Password = "secret";
         model.ConfirmPassword = model.Password;
         model.CreateAccount = true;
         model.DeveloperAccount = true;
@@ -34,6 +34,7 @@ public sealed class ViewModelTests
         await model.AccountCommand.ExecuteAsync(null);
         Assert.True(model.IsSignedIn);
         Assert.True(api.Registration!.Developer);
+        Assert.Equal("secret", api.Registration.Password);
         Assert.Equal("test invitation", api.Registration.DeveloperCode);
         Assert.Empty(model.Password);
         Assert.Empty(model.DeveloperCode);

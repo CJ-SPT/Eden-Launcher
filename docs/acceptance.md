@@ -4,6 +4,7 @@ Automated results and native-client observations are recorded separately. Comput
 
 ## Automated
 
+- November 4 password minimum update: the account form now advertises 6–128 characters. Release build, four focused `Eden.Launcher.Tests.ViewModelTests` cases, and formatting checks passed. The registration flow forwards a six-character password. The first Debug build was blocked by the open desktop executable; the successful Release checks used a separate output. No full regression suite or native client acceptance was performed for this update. The server's 21 focused launcher tests cover registration/password-change boundaries, reopen/sign-in and HTTP behavior.
 - Server after rebasing onto the committed hardener work, including account/developer/QA compatibility, HTTP contract and throttling tests: 501 passed.
 - Launcher: 18 tests passed, including Avalonia headless flows, staging cancellation/resume, manifest tampering, account roles and TLS trust checks.
 

@@ -367,7 +367,7 @@
               <TextBox
                 Text="{Binding Password}"
                 PasswordChar="●"
-                PlaceholderText="Password (12–128 characters)"
+                PlaceholderText="Password (6–128 characters)"
                 AutomationProperties.Name="Password"
               />
               <StackPanel IsVisible="{Binding ShowConfirmation}" Spacing="12">
