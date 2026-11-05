@@ -74,6 +74,7 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
                 {
                     throw new InvalidDataException("The login ticket expired. Press Play again.");
                 }
+                await ChatTrust.InstallAsync(root, server.ChatCertificatePem, cancellation);
                 relay = new GatewayRelay(new Uri(server.GatewayAddress));
                 var process =
                     Process.Start(CreateStartInfo(root, server, session, launch.Ticket, relay.Address))

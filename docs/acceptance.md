@@ -2,6 +2,16 @@
 
 Automated results, launcher UI checks and native-client observations are recorded separately. The historical native-client checks below were stopped by the user with Escape before final gameplay acceptance.
 
+## Chat certificate trust — November 5, 2026
+
+The optional `ServerReply.ChatCertificatePem` field is handled by the core launch path. It accepts a current certificate-authority certificate, adds only its public certificate to the prepared copy's `tq/bin64/packages/certifi/cacert.pem`, preserves the existing roots and avoids duplicate installation across account/group launches. A prepared-client marker and existing link/junction checks protect the destination. Old servers omit this field and remain compatible. The change adds no visible controls and does not modify the source EVE installation or operating-system root store.
+
+**Automated validation:** tool/solution restore, build (zero warnings/errors, approximately 0.5 seconds), all 33 launcher tests (approximately 0.7 seconds), and formatting verification passed. New cases verify prepared-copy gating, unchanged-state rejection, preserved original roots, repeated installation, rejection of a non-authority certificate and old-server compatibility.
+
+**Live acceptance:** Not performed; no visible launcher flow changed and the game was not launched. Native chat-window acceptance remains pending under Eden's automated-only policy.
+
+**Optional maintainer checks:** Launch two accounts using the rebuilt launcher/server and exchange Local messages.
+
 ## Layout cleanup — November 4, 2026
 
 Narrowed the navigation/news/accounts columns to give the game panel more room. Account cards now use a compact two-line layout with an unobstructed selection indicator; Add account sits in the section header and Sign out is a smaller secondary action. Launch-group creation, selection and actions fit together without scrolling with the two saved accounts. The selected account and running count sit above the centered, full-width Play button. The artwork adapts to available height, and the duplicate client-preparation shortcut hides once a client is ready.

@@ -23,4 +23,12 @@ public sealed record LaunchReply(string Ticket, long ExpiresAt, string Manifest)
 
 public sealed record ApiError(string Code, string Message);
 
-public sealed record ServerReply(string ServerId, string Name, int ApiVersion, int ClientBuild, string GameAddress, string GatewayAddress);
+public sealed record ServerReply(
+    string ServerId,
+    string Name,
+    int ApiVersion,
+    int ClientBuild,
+    string GameAddress,
+    string GatewayAddress,
+    string? ChatCertificatePem = null
+);
