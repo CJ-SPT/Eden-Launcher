@@ -57,24 +57,34 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
                 ClientInstallation.AssertNoLinks(root);
                 await build.VerifyAsync(root, cancellation);
                 byte[] prefix = build.ReadPrefix(root);
+                var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation);
+                prefix = ClientManifest.WithChatHash(prefix, trust?.Sha256);
                 byte[] manifest = Convert.FromBase64String(launch.Manifest);
                 ClientInstallation.ValidateSignedManifest(manifest, prefix);
                 string manifestPath = Path.Combine(root, "tq", "manifest.dat");
                 byte[] currentManifest = await File.ReadAllBytesAsync(manifestPath, cancellation);
                 bool manifestChanged = !manifest.AsSpan().SequenceEqual(currentManifest);
-                if (_clients.Any(client => client.Root.Equals(root, StringComparison.OrdinalIgnoreCase)) && manifestChanged)
+                if (
+                    _clients.Any(client => client.Root.Equals(root, StringComparison.OrdinalIgnoreCase))
+                    && (manifestChanged || trust?.Changed == true)
+                )
                 {
-                    throw new InvalidOperationException("Close this installation's game clients before switching server keys.");
-                }
-                if (manifestChanged)
-                {
-                    await AtomicFile.WriteAsync(manifestPath, manifest, cancellation);
+                    throw new InvalidOperationException(
+                        "Close this installation's game clients before switching server keys or chat trust."
+                    );
                 }
                 if (launch.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds())
                 {
                     throw new InvalidDataException("The login ticket expired. Press Play again.");
                 }
-                await ChatTrust.InstallAsync(root, server.ChatCertificatePem, cancellation);
+                if (manifestChanged)
+                {
+                    await AtomicFile.WriteAsync(manifestPath, manifest, cancellation);
+                }
+                if (trust is not null)
+                {
+                    await trust.ApplyAsync(cancellation);
+                }
                 relay = new GatewayRelay(new Uri(server.GatewayAddress));
                 var process =
                     Process.Start(CreateStartInfo(root, server, session, launch.Ticket, relay.Address))

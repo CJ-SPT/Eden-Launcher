@@ -2,6 +2,16 @@
 
 Automated results, launcher UI checks and native-client observations are recorded separately. The historical native-client checks below were stopped by the user with Escape before final gameplay acceptance.
 
+## Signed chat bundle correction — November 5, 2026
+
+Chat trust previously changed a manifest-covered file without updating its signed hash. The client rejected the root manifest and displayed its fallback error, `Couldn't open manifest file bin:/manifest.dat`. The corrected individual/group paths prepare trust in memory, request the matching signed certifi fingerprint and validate both before changing files or starting the game. Only that hash may vary; the rest of build 3662168 remains pinned. Existing affected prepared copies recover on their next corrected launch. Update/restart the server and launcher together.
+
+**Automated validation:** tool/solution restore and build passed with zero warnings/errors (1.5 seconds); all **35 launcher tests passed in 1 second**. Formatting verification (30 files) and diff checks passed. Companion Eden focused chat/launcher/hosting/resident-world checks passed **64 cases in 10 seconds**, with build, both Python policy suites and formatting passing. New regression cases parse the native version-4 manifest entry, compare its hash to the actual prospective bundle, verify its signature, check second-account stability and reject unrelated prefix changes. An older signer that ignores the requested hash is rejected with both existing files unchanged and no client started. Companion Eden validation includes a headless audit of all 219 real native file entries plus the actual signature and repeated development preparation.
+
+**Live acceptance:** Not performed; no visible controls changed and the game was not launched.
+
+**Optional maintainer checks:** Use the rebuilt server/launcher to launch two accounts and exchange Local messages.
+
 ## Chat certificate trust — November 5, 2026
 
 The optional `ServerReply.ChatCertificatePem` field is handled by the core launch path. It accepts a current certificate-authority certificate, adds only its public certificate to the prepared copy's `tq/bin64/packages/certifi/cacert.pem`, preserves the existing roots and avoids duplicate installation across account/group launches. A prepared-client marker and existing link/junction checks protect the destination. Old servers omit this field and remain compatible. The change adds no visible controls and does not modify the source EVE installation or operating-system root store.

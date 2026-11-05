@@ -17,18 +17,23 @@ public sealed class ChatTrustTests
             await File.WriteAllTextAsync(bundle, "original public roots\n", TestContext.Current.CancellationToken);
             using var certificate = Certificate(true);
             string pem = certificate.ExportCertificatePem();
-            await Assert.ThrowsAsync<InvalidDataException>(() => ChatTrust.InstallAsync(root, pem, TestContext.Current.CancellationToken));
+            await Assert.ThrowsAsync<InvalidDataException>(() => ChatTrust.PrepareAsync(root, pem, TestContext.Current.CancellationToken));
             Assert.Equal("original public roots\n", await File.ReadAllTextAsync(bundle, TestContext.Current.CancellationToken));
             await File.WriteAllTextAsync(
                 Path.Combine(root, ClientBuild.ReadyMarker),
                 ClientBuild.Number.ToString(),
                 TestContext.Current.CancellationToken
             );
-            await ChatTrust.InstallAsync(root, pem, TestContext.Current.CancellationToken);
+            var update = await ChatTrust.PrepareAsync(root, pem, TestContext.Current.CancellationToken);
+            Assert.Equal("original public roots\n", await File.ReadAllTextAsync(bundle, TestContext.Current.CancellationToken));
+            await update!.ApplyAsync(TestContext.Current.CancellationToken);
             string first = await File.ReadAllTextAsync(bundle, TestContext.Current.CancellationToken);
             Assert.StartsWith("original public roots\n", first);
             Assert.Contains(pem, first);
-            await ChatTrust.InstallAsync(root, pem, TestContext.Current.CancellationToken);
+            var repeated = await ChatTrust.PrepareAsync(root, pem, TestContext.Current.CancellationToken);
+            Assert.False(repeated!.Changed);
+            Assert.Equal(update.Sha256, repeated.Sha256);
+            await repeated.ApplyAsync(TestContext.Current.CancellationToken);
             Assert.Equal(first, await File.ReadAllTextAsync(bundle, TestContext.Current.CancellationToken));
         }
         finally
@@ -40,7 +45,7 @@ public sealed class ChatTrustTests
     [Fact]
     public async Task OlderServersDoNotChangeClientTrust()
     {
-        await ChatTrust.InstallAsync("not-a-client-path", null, TestContext.Current.CancellationToken);
+        await ChatTrust.PrepareAsync("not-a-client-path", null, TestContext.Current.CancellationToken);
         var server = System.Text.Json.JsonSerializer.Deserialize<ServerReply>(
             """
             {"ServerId":"old","Name":"Old","ApiVersion":1,"ClientBuild":3662168,
@@ -60,7 +65,7 @@ public sealed class ChatTrustTests
             await File.WriteAllTextAsync(Path.Combine(root, ClientBuild.ReadyMarker), "3662168", TestContext.Current.CancellationToken);
             using var leaf = Certificate(false);
             await Assert.ThrowsAsync<InvalidDataException>(() =>
-                ChatTrust.InstallAsync(root, leaf.ExportCertificatePem(), TestContext.Current.CancellationToken)
+                ChatTrust.PrepareAsync(root, leaf.ExportCertificatePem(), TestContext.Current.CancellationToken)
             );
         }
         finally

@@ -1,14 +1,16 @@
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 
 namespace Eden.Launcher.Core;
 
 public static class ChatTrust
 {
-    public static async Task InstallAsync(string root, string? certificatePem, CancellationToken cancellation)
+    public static async Task<ChatTrustUpdate?> PrepareAsync(string root, string? certificatePem, CancellationToken cancellation)
     {
         if (certificatePem is null)
         {
-            return;
+            return null;
         }
         if (certificatePem.Length > 16384 || !File.Exists(Path.Combine(root, ClientBuild.ReadyMarker)))
         {
@@ -27,14 +29,22 @@ public static class ChatTrust
         string pem = certificate.ExportCertificatePem();
         string bundle = Path.Combine(root, "tq", "bin64", "packages", "certifi", "cacert.pem");
         ClientInstallation.AssertNoLinks(bundle);
-        string original = await File.ReadAllTextAsync(bundle, cancellation);
-        if (original.Length > 4 * 1024 * 1024)
+        const int maximumBundleBytes = 4 * 1024 * 1024;
+        if (new FileInfo(bundle).Length > maximumBundleBytes)
         {
             throw new InvalidDataException("The client certificate bundle is too large.");
         }
-        if (!original.Contains(pem, StringComparison.Ordinal))
-        {
-            await AtomicFile.WriteAsync(bundle, System.Text.Encoding.UTF8.GetBytes(original + "\n" + pem + "\n"), cancellation);
-        }
+        byte[] original = await File.ReadAllBytesAsync(bundle, cancellation);
+        bool changed = !Encoding.UTF8.GetString(original).Contains(pem, StringComparison.Ordinal);
+        byte[] contents = changed ? [.. original, .. Encoding.UTF8.GetBytes("\n" + pem + "\n")] : original;
+        return new(bundle, contents, changed);
     }
+}
+
+public sealed record ChatTrustUpdate(string Path, byte[] Contents, bool Changed)
+{
+    public string Sha256 => Convert.ToHexString(SHA256.HashData(Contents));
+
+    public Task ApplyAsync(CancellationToken cancellation) =>
+        Changed ? AtomicFile.WriteAsync(Path, Contents, cancellation) : Task.CompletedTask;
 }

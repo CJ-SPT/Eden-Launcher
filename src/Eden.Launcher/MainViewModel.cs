@@ -550,8 +550,8 @@ public partial class MainViewModel : ObservableObject
                     _credentials.Read(ApiAddress, UserName) ?? throw new InvalidOperationException("Please sign out and sign in again.");
                 await AcceptSessionAsync(await api.RefreshAsync(refresh, cancellation));
             }
-            byte[] prefix = _build.ReadPrefix(ClientRoot);
-            var launch = await api.LaunchAsync(_session.AccessToken, new(ClientBuild.Number, Convert.ToBase64String(prefix)), cancellation);
+            var request = await _build.CreateLaunchRequestAsync(ClientRoot, _server!, cancellation);
+            var launch = await api.LaunchAsync(_session.AccessToken, request, cancellation);
             await _launcher.LaunchAsync(ClientRoot, _server!, _session, launch, cancellation);
             RunningCount = _launcher.RunningCount;
             Status = "Game launched. Fly safe.";

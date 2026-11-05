@@ -55,11 +55,22 @@ public sealed class ClientBuild
 
     public static byte[] ReadManifestPrefix(string root) => new ClientBuild().ReadPrefix(root);
 
+    public async Task<LaunchRequest> CreateLaunchRequestAsync(string root, ServerReply server, CancellationToken cancellation)
+    {
+        byte[] prefix = ReadPrefix(root);
+        var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation);
+        return new(Number, Convert.ToBase64String(prefix), trust?.Sha256);
+    }
+
     public byte[] ReadPrefix(string root)
     {
         using var stream = File.OpenRead(Path.Combine(root, "tq", "manifest.dat"));
         byte[] prefix = new byte[ManifestLength];
         stream.ReadExactly(prefix);
+        if (ManifestLength == ManifestPrefixLength)
+        {
+            prefix = ClientManifest.WithChatHash(prefix, ClientManifest.OriginalChatHash);
+        }
         if (Convert.ToHexString(SHA256.HashData(prefix)) != ManifestHash)
         {
             throw new InvalidDataException("Unrecognized client manifest. Restore the original build 3662168 files.");

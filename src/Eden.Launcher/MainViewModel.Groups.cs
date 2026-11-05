@@ -185,12 +185,8 @@ public partial class MainViewModel
                         throw new InvalidOperationException("Account is no longer saved. Edit this group.");
                     }
                     var session = await GetGroupSessionAsync(api, address, account, cancellation);
-                    byte[] prefix = _build.ReadPrefix(root);
-                    var launch = await api.LaunchAsync(
-                        session.AccessToken,
-                        new(ClientBuild.Number, Convert.ToBase64String(prefix)),
-                        cancellation
-                    );
+                    var request = await _build.CreateLaunchRequestAsync(root, server, cancellation);
+                    var launch = await api.LaunchAsync(session.AccessToken, request, cancellation);
                     await _launcher.LaunchAsync(root, server, session, launch, cancellation);
                     RunningCount = _launcher.RunningCount;
                     launched++;
