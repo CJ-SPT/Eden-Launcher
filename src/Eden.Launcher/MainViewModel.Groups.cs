@@ -162,6 +162,7 @@ public partial class MainViewModel
             int failed = 0;
             bool cancelled = false;
             using var api = _apiFactory(address);
+            server = await api.ServerAsync(cancellation);
             foreach (long accountId in members)
             {
                 if (cancellation.IsCancellationRequested)
@@ -187,6 +188,7 @@ public partial class MainViewModel
                     var session = await GetGroupSessionAsync(api, address, account, cancellation);
                     var request = await _build.CreateLaunchRequestAsync(root, server, cancellation);
                     var launch = await api.LaunchAsync(session.AccessToken, request, cancellation);
+                    launch = await ClientSkillArchive.DownloadForLaunchAsync(api, root, server, session, launch, cancellation);
                     await _launcher.LaunchAsync(root, server, session, launch, cancellation);
                     RunningCount = _launcher.RunningCount;
                     launched++;

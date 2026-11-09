@@ -42,9 +42,16 @@ public sealed class ClientBuild
         {
             string path = Path.Combine(root, "tq", fingerprint.Path);
             await using var stream = File.OpenRead(path);
-            if (Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellation)) != fingerprint.Sha256)
+            string actual = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellation));
+            if (actual != fingerprint.Sha256)
             {
-                throw new InvalidDataException($"Wrong client build or modified file: {fingerprint.Path}");
+                if (
+                    fingerprint.Path != "code.ccp"
+                    || !await ClientSkillArchive.IsInstalledAsync(root, fingerprint.Sha256, actual, this, cancellation)
+                )
+                {
+                    throw new InvalidDataException($"Wrong client build or modified file: {fingerprint.Path}");
+                }
             }
         }
         if (!Directory.Exists(Path.Combine(root, "ResFiles")))
@@ -59,7 +66,7 @@ public sealed class ClientBuild
     {
         byte[] prefix = ReadPrefix(root);
         var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation);
-        return new(Number, Convert.ToBase64String(prefix), trust?.Sha256);
+        return new(Number, Convert.ToBase64String(prefix), trust?.Sha256, server.SkillPackage?.Id);
     }
 
     public byte[] ReadPrefix(string root)
@@ -67,9 +74,23 @@ public sealed class ClientBuild
         using var stream = File.OpenRead(Path.Combine(root, "tq", "manifest.dat"));
         byte[] prefix = new byte[ManifestLength];
         stream.ReadExactly(prefix);
+        return ReadPrefix(prefix);
+    }
+
+    public byte[] ReadPrefix(byte[] manifest)
+    {
+        if (manifest.Length < ManifestLength)
+        {
+            throw new InvalidDataException("The client manifest is incomplete.");
+        }
+        byte[] prefix = manifest[..ManifestLength];
         if (ManifestLength == ManifestPrefixLength)
         {
             prefix = ClientManifest.WithChatHash(prefix, ClientManifest.OriginalChatHash);
+            if (Files.FirstOrDefault(file => file.Path == "code.ccp") is { } code)
+            {
+                prefix = ClientManifest.WithCodeHash(prefix, code.Sha256);
+            }
         }
         if (Convert.ToHexString(SHA256.HashData(prefix)) != ManifestHash)
         {

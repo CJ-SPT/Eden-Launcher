@@ -23,6 +23,8 @@ The server runs separately. See [server setup](docs/server-setup.md) and [accept
 
 ## Launch groups
 
+Servers can publish skill edits through Eden's local web editor. Play and launch groups check the active skill package and install its verified archive and signed manifest before starting the game. The launcher keeps the pinned original archive, reuses current packages and restores the original when switching to a server without edits. Close games using that installation before changing its package. Update the server and launcher together; older launchers cannot enter a server that requires a skill package.
+
 In the account column, under **Launch groups**, choose **New group**, give it a name, select its accounts, and save. Choose the saved group and press **Launch group** to start its accounts one after another using the current server profile's verified client. Use **Edit** to rename the group or change its members; **Delete** removes only the group.
 
 Groups are saved separately for each server profile. Add and sign in to each account first; enable **Remember me** to keep group launching available after restarting the launcher. Active sign-ins also work without Remember me during the current launcher session. Groups never store passwords or tokens.

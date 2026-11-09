@@ -55,35 +55,54 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
                     throw new InvalidDataException("Prepare or select a ready Eden client first.");
                 }
                 ClientInstallation.AssertNoLinks(root);
+                await ClientSkillArchive.RecoverAsync(root, build, cancellation);
                 await build.VerifyAsync(root, cancellation);
                 byte[] prefix = build.ReadPrefix(root);
                 var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation);
                 prefix = ClientManifest.WithChatHash(prefix, trust?.Sha256);
+                prefix = ClientManifest.WithCodeHash(prefix, server.SkillPackage?.CodeSha256);
                 byte[] manifest = Convert.FromBase64String(launch.Manifest);
                 ClientInstallation.ValidateSignedManifest(manifest, prefix);
+                var skills = await ClientSkillArchive.PrepareAsync(root, build, server.SkillPackage, launch.SkillArchive, cancellation);
                 string manifestPath = Path.Combine(root, "tq", "manifest.dat");
                 byte[] currentManifest = await File.ReadAllBytesAsync(manifestPath, cancellation);
                 bool manifestChanged = !manifest.AsSpan().SequenceEqual(currentManifest);
                 if (
                     _clients.Any(client => client.Root.Equals(root, StringComparison.OrdinalIgnoreCase))
-                    && (manifestChanged || trust?.Changed == true)
+                    && (manifestChanged || trust?.Changed == true || skills?.Changed == true)
                 )
                 {
                     throw new InvalidOperationException(
-                        "Close this installation's game clients before switching server keys or chat trust."
+                        "Close this installation's game clients before changing server keys, chat trust or skills."
                     );
                 }
                 if (launch.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds())
                 {
                     throw new InvalidDataException("The login ticket expired. Press Play again.");
                 }
-                if (manifestChanged)
+                try
                 {
-                    await AtomicFile.WriteAsync(manifestPath, manifest, cancellation);
+                    await ClientSkillArchive.BeginUpdateAsync(root, skills, currentManifest, cancellation);
+                    await ClientSkillArchive.ApplyAsync(root, build, skills, cancellation);
+                    if (manifestChanged)
+                    {
+                        await AtomicFile.WriteAsync(manifestPath, manifest, cancellation);
+                    }
+                    if (trust is not null)
+                    {
+                        await trust.ApplyAsync(cancellation);
+                    }
+                    ClientSkillArchive.CompleteUpdate(root);
                 }
-                if (trust is not null)
+                catch
                 {
-                    await trust.ApplyAsync(cancellation);
+                    if (skills?.Changed == true)
+                    {
+                        await AtomicFile.WriteAsync(Path.Combine(root, "tq", "code.ccp"), skills.Previous, CancellationToken.None);
+                    }
+                    await AtomicFile.WriteAsync(manifestPath, currentManifest, CancellationToken.None);
+                    ClientSkillArchive.CompleteUpdate(root);
+                    throw;
                 }
                 relay = new GatewayRelay(new Uri(server.GatewayAddress));
                 var process =

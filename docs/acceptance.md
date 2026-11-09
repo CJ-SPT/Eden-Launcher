@@ -79,3 +79,13 @@ Server output captured during cleanup subsequently recorded successful CreateCha
 Still unverified visually in the final native build: the completed station scene, opening Insider/GM menus, existing Eden Pilot login through the launcher, remembered sign-in after restart, sign-out through the actual window, concurrent clients, and tray/relay behavior across a running game. Automated coverage checks the corresponding account/token, role, preparation, launch-argument, relay and view-model behavior where applicable.
 
 Official artwork was visually inspected in the actual launcher. The promotional left column was then replaced with a reserved empty news section, and Online was removed from Eden branding at the user's request.
+
+## Server skill packages — November 9, 2026
+
+Play and launch groups refresh server metadata, bind launch tickets to the active skill package and download changed archives from the authenticated server origin. Size, SHA-256 and the exact signed native manifest are checked before installation. The launcher preserves the pinned stock archive, verifies previously installed packages against their native signatures, reuses current archives and restores stock when switching to a server without edits. A durable update journal recovers the prior verified archive/manifest after interruption; preparing from an updated source uses its verified originals. Running games block changes to that installation.
+
+**Automated validation:** Tool/solution restore, build with zero warnings/errors, **39 affected tests**, formatting and diff checks passed in **10.26 seconds**. The filter was `FullyQualifiedName~SkillPackageTests|FullyQualifiedName~ChatManifestTests|FullyQualifiedName~GroupLaunchTests|FullyQualifiedName~ViewModelTests|FullyQualifiedName~ApiAndLaunchTests|FullyQualifiedName~InstallationTests`. New cases cover authenticated downloads, exact hashes/sizes, rejected invalid identities and unsigned/tampered archives, installation/server switching/stock restoration, interrupted update recovery and preparation from a patched client. The companion server's 102 affected cases and 11 headless native adapter assertions passed separately.
+
+**Live acceptance:** Not performed; agent client testing is disabled.
+
+**Optional maintainer checks:** Publish a skill package in Eden's web editor and restart the server, then Play and verify the skill; launch another account from a group with that package; close the games and switch to a server without edits to check stock restoration.

@@ -33,6 +33,29 @@ public sealed class ClientInstallation(ClientBuild build) : IClientInstallation
         AssertNoLinks(destination);
         await build.VerifyAsync(source, cancellation);
         build.ReadPrefix(source);
+        string? originalCode = null;
+        string? originalManifest = null;
+        string backup = Path.Combine(source, ClientSkillArchive.OriginalArchive);
+        ClientInstallation.AssertNoLinks(backup);
+        if (build.Files.FirstOrDefault(file => file.Path == "code.ccp") is { } fingerprint && File.Exists(backup))
+        {
+            await using var stream = File.OpenRead(backup);
+            if (Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellation)) == fingerprint.Sha256)
+            {
+                originalCode = backup;
+                string manifestBackup = Path.Combine(source, ClientBuild.OriginalManifest);
+                ClientInstallation.AssertNoLinks(manifestBackup);
+                if (File.Exists(manifestBackup))
+                {
+                    byte[] bytes = await File.ReadAllBytesAsync(manifestBackup, cancellation);
+                    _ = build.ReadPrefix(bytes);
+                    if (Convert.ToHexString(bytes.AsSpan(ClientManifest.CodeHashOffset, SHA256.HashSizeInBytes)) == fingerprint.Sha256)
+                    {
+                        originalManifest = manifestBackup;
+                    }
+                }
+            }
+        }
         using var lease = InstallationLock.Acquire(destination);
         ClientProcesses.AssertNoExternalClient(destination, []);
         string marker = Path.Combine(destination, ClientBuild.BuildMarker);
@@ -46,8 +69,8 @@ public sealed class ClientInstallation(ClientBuild build) : IClientInstallation
             throw new InvalidDataException("Resume preparation using the same source installation.");
         }
         var files = new[] { "tq", "ResFiles" }.SelectMany(name => EnumerateSafe(Path.Combine(source, name))).ToArray();
-        long total = files.Sum(path => new FileInfo(path).Length);
-        long remaining = files.Where(path => !IsCurrent(path, Target(path))).Sum(path => new FileInfo(path).Length);
+        long total = files.Sum(path => new FileInfo(Input(path)).Length);
+        long remaining = files.Where(path => !IsCurrent(Input(path), Target(path))).Sum(path => new FileInfo(Input(path)).Length);
         string driveRoot = Path.GetPathRoot(destination)!;
         const long reserveBytes = 256L * 1024 * 1024;
         if (new DriveInfo(driveRoot).AvailableFreeSpace < remaining + reserveBytes)
@@ -66,14 +89,17 @@ public sealed class ClientInstallation(ClientBuild build) : IClientInstallation
         {
             cancellation.ThrowIfCancellationRequested();
             string target = Target(path);
+            string inputPath = Input(path);
             AssertNoLinks(target);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
-            if (!IsCurrent(path, target))
+            if (!IsCurrent(inputPath, target))
             {
                 string temporary = target + ".eden-copy.tmp";
                 try
                 {
-                    await using (var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                    await using (
+                        var input = new FileStream(inputPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete)
+                    )
                     await using (
                         var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 1024 * 1024, true)
                     )
@@ -88,14 +114,14 @@ public sealed class ClientInstallation(ClientBuild build) : IClientInstallation
                         }
                     }
                     File.Move(temporary, target, overwrite: true);
-                    File.SetLastWriteTimeUtc(target, File.GetLastWriteTimeUtc(path));
+                    File.SetLastWriteTimeUtc(target, File.GetLastWriteTimeUtc(inputPath));
                 }
                 finally
                 {
                     File.Delete(temporary);
                 }
             }
-            copied += new FileInfo(path).Length;
+            copied += new FileInfo(inputPath).Length;
             Report(path, copied, copied == total);
         }
         await build.VerifyAsync(destination, cancellation);
@@ -104,6 +130,14 @@ public sealed class ClientInstallation(ClientBuild build) : IClientInstallation
         await AtomicFile.WriteAsync(ready, Encoding.UTF8.GetBytes(ClientBuild.Number.ToString()), cancellation);
 
         string Target(string path) => Path.Combine(destination, Path.GetRelativePath(source, path));
+
+        string Input(string path) =>
+            Path.GetRelativePath(source, path) switch
+            {
+                var relative when relative == Path.Combine("tq", "code.ccp") && originalCode is not null => originalCode,
+                var relative when relative == Path.Combine("tq", "manifest.dat") && originalManifest is not null => originalManifest,
+                _ => path,
+            };
 
         void Report(string path, long bytes, bool force)
         {
@@ -125,6 +159,7 @@ public sealed class ClientInstallation(ClientBuild build) : IClientInstallation
         {
             throw new InvalidDataException("This folder is not a prepared Eden client. Use Prepare client first.");
         }
+        await ClientSkillArchive.RecoverAsync(root, build, cancellation);
         await build.VerifyAsync(root, cancellation);
         build.ReadPrefix(root);
         PreserveManifest(root);

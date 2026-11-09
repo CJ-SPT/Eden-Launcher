@@ -13,6 +13,8 @@ public interface ILauncherApiClient : IDisposable
     Task<SessionReply> RefreshAsync(string refreshToken, CancellationToken cancellation = default);
     Task SignOutAsync(string accessToken, CancellationToken cancellation = default);
     Task<LaunchReply> LaunchAsync(string accessToken, LaunchRequest request, CancellationToken cancellation = default);
+    Task<byte[]> SkillArchiveAsync(string accessToken, SkillClientPackage package, CancellationToken cancellation = default) =>
+        Task.FromException<byte[]>(new InvalidOperationException("This launcher connection does not support skill packages."));
 }
 
 public sealed class LauncherApiException(string code, string message) : Exception(message)
@@ -86,6 +88,29 @@ public sealed class LauncherApiClient : ILauncherApiClient
 
     public Task<LaunchReply> LaunchAsync(string accessToken, LaunchRequest request, CancellationToken cancellation = default) =>
         SendAsync<LaunchReply>(HttpMethod.Post, "launch-tickets", JsonContent.Create(request), accessToken, cancellation);
+
+    public async Task<byte[]> SkillArchiveAsync(string accessToken, SkillClientPackage package, CancellationToken cancellation = default)
+    {
+        ClientSkillArchive.Validate(package);
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/skill-packages/" + package.Id + "/code");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation);
+        if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength != package.CodeLength)
+        {
+            throw new InvalidDataException(
+                "The server skill package is unavailable or its size changed. Refresh the server and try again."
+            );
+        }
+        byte[] bytes = new byte[checked((int)package.CodeLength)];
+        await using var stream = await response.Content.ReadAsStreamAsync(cancellation);
+        await stream.ReadExactlyAsync(bytes, cancellation);
+        if (stream.ReadByte() != -1)
+        {
+            throw new InvalidDataException("The skill package is larger than advertised.");
+        }
+        ClientSkillArchive.Verify(bytes, package);
+        return bytes;
+    }
 
     private async Task<T> SendAsync<T>(HttpMethod method, string path, HttpContent? content, string? access, CancellationToken cancellation)
     {

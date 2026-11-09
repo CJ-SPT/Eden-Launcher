@@ -550,8 +550,14 @@ public partial class MainViewModel : ObservableObject
                     _credentials.Read(ApiAddress, UserName) ?? throw new InvalidOperationException("Please sign out and sign in again.");
                 await AcceptSessionAsync(await api.RefreshAsync(refresh, cancellation));
             }
+            _server = await api.ServerAsync(cancellation);
             var request = await _build.CreateLaunchRequestAsync(ClientRoot, _server!, cancellation);
             var launch = await api.LaunchAsync(_session.AccessToken, request, cancellation);
+            if (_server.SkillPackage is not null)
+            {
+                Status = "Checking server skill updates…";
+            }
+            launch = await ClientSkillArchive.DownloadForLaunchAsync(api, ClientRoot, _server, _session, launch, cancellation);
             await _launcher.LaunchAsync(ClientRoot, _server!, _session, launch, cancellation);
             RunningCount = _launcher.RunningCount;
             Status = "Game launched. Fly safe.";
