@@ -21,7 +21,9 @@ public sealed class ChatManifestTests : IDisposable
         var request = await build.CreateLaunchRequestAsync(_root, server, TestContext.Current.CancellationToken);
         Assert.Equal(originalManifest, File.ReadAllBytes(ManifestPath));
         Assert.Equal(originalBundle, File.ReadAllBytes(BundlePath));
-        var trust = (await ChatTrust.PrepareAsync(_root, server.ChatCertificatePem, TestContext.Current.CancellationToken))!;
+        var trust = (
+            await ChatTrust.PrepareAsync(_root, server.ChatCertificatePem, TestContext.Current.CancellationToken, build.ChatBundleHash)
+        )!;
         Assert.Equal(Convert.ToHexString(SHA256.HashData(trust.Contents)), request.ChatBundleSha256);
         byte[] canonical = Convert.FromBase64String(request.ManifestPrefix);
         byte[] expected = ClientManifest.WithChatHash(canonical, request.ChatBundleSha256);
@@ -46,7 +48,11 @@ public sealed class ChatManifestTests : IDisposable
         var second = await build.CreateLaunchRequestAsync(_root, server, TestContext.Current.CancellationToken);
         Assert.Equal(request, second);
         Assert.Equal(signed, File.ReadAllBytes(ManifestPath));
-        Assert.False((await ChatTrust.PrepareAsync(_root, server.ChatCertificatePem, TestContext.Current.CancellationToken))!.Changed);
+        Assert.False(
+            (
+                await ChatTrust.PrepareAsync(_root, server.ChatCertificatePem, TestContext.Current.CancellationToken, build.ChatBundleHash)
+            )!.Changed
+        );
         signed[20] ^= 1;
         await File.WriteAllBytesAsync(ManifestPath, signed, TestContext.Current.CancellationToken);
         Assert.Throws<InvalidDataException>(() => build.ReadPrefix(_root));
@@ -75,6 +81,127 @@ public sealed class ChatManifestTests : IDisposable
         Assert.Equal(0, clients.RunningCount);
     }
 
+    [Fact]
+    public async Task SwitchingToAnOlderServerRestoresThePinnedBundleAndPreservesTheLegacyRequest()
+    {
+        var build = Prepare();
+        byte[] original = File.ReadAllBytes(BundlePath);
+        foreach (var server in new[] { Server(), Server() })
+        {
+            var update = await ChatTrust.PrepareAsync(
+                _root,
+                server.ChatCertificatePem,
+                TestContext.Current.CancellationToken,
+                build.ChatBundleHash
+            );
+            await update!.ApplyAsync(TestContext.Current.CancellationToken);
+        }
+        byte[] modified = File.ReadAllBytes(BundlePath);
+        var older = Server() with { ChatCertificatePem = null };
+        var request = await build.CreateLaunchRequestAsync(_root, older, TestContext.Current.CancellationToken);
+        Assert.Null(request.ChatBundleSha256);
+        Assert.Equal(modified, File.ReadAllBytes(BundlePath));
+        var restore = (await ChatTrust.PrepareAsync(_root, null, TestContext.Current.CancellationToken, build.ChatBundleHash))!;
+        Assert.True(restore.Changed);
+        Assert.Equal(original, restore.Contents);
+        byte[] canonical = Convert.FromBase64String(request.ManifestPrefix);
+        byte[] signed = Sign(canonical);
+        ClientInstallation.ValidateSignedManifest(signed, ClientManifest.WithChatHash(canonical, restore.Sha256));
+        await restore.ApplyAsync(TestContext.Current.CancellationToken);
+        await AtomicFile.WriteAsync(ManifestPath, signed, TestContext.Current.CancellationToken);
+        Assert.Equal(original, File.ReadAllBytes(BundlePath));
+        Assert.False((await ChatTrust.PrepareAsync(_root, null, TestContext.Current.CancellationToken, build.ChatBundleHash))!.Changed);
+        var newer = Server();
+        var again = await build.CreateLaunchRequestAsync(_root, newer, TestContext.Current.CancellationToken);
+        Assert.NotNull(again.ChatBundleSha256);
+        Assert.Equal(original, File.ReadAllBytes(BundlePath));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DamagedOriginalBundlesAreRejectedWithoutChangingAnyFiles(bool appendedCertificate)
+    {
+        var build = Prepare();
+        if (appendedCertificate)
+        {
+            var update = await ChatTrust.PrepareAsync(
+                _root,
+                Server().ChatCertificatePem,
+                TestContext.Current.CancellationToken,
+                build.ChatBundleHash
+            );
+            await update!.ApplyAsync(TestContext.Current.CancellationToken);
+        }
+        byte[] modified = File.ReadAllBytes(BundlePath);
+        modified[0] ^= 1;
+        await File.WriteAllBytesAsync(BundlePath, modified, TestContext.Current.CancellationToken);
+        byte[] manifest = File.ReadAllBytes(ManifestPath);
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            build.CreateLaunchRequestAsync(_root, Server() with { ChatCertificatePem = null }, TestContext.Current.CancellationToken)
+        );
+        Assert.Equal(modified, File.ReadAllBytes(BundlePath));
+        Assert.Equal(manifest, File.ReadAllBytes(ManifestPath));
+    }
+
+    [Fact]
+    public async Task ExpiredTicketsLeaveTheModifiedBundleAndManifestIntactDuringRestoration()
+    {
+        var build = Prepare();
+        var server = Server();
+        var trust = (
+            await ChatTrust.PrepareAsync(_root, server.ChatCertificatePem, TestContext.Current.CancellationToken, build.ChatBundleHash)
+        )!;
+        await trust.ApplyAsync(TestContext.Current.CancellationToken);
+        byte[] currentManifest = Sign(ClientManifest.WithChatHash(build.ReadPrefix(_root), trust.Sha256));
+        await File.WriteAllBytesAsync(ManifestPath, currentManifest, TestContext.Current.CancellationToken);
+        var clients = new ClientProcesses(build);
+        var reply = new LaunchReply("unused", 0, Convert.ToBase64String(Sign(build.ReadPrefix(_root))));
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() =>
+            clients.LaunchAsync(
+                _root,
+                server with
+                {
+                    ChatCertificatePem = null,
+                },
+                new(1, "Pilot", "unused", 0, null),
+                reply,
+                TestContext.Current.CancellationToken
+            )
+        );
+        Assert.Contains("ticket expired", error.Message);
+        Assert.Equal(trust.Contents, File.ReadAllBytes(BundlePath));
+        Assert.Equal(currentManifest, File.ReadAllBytes(ManifestPath));
+        Assert.Equal(0, clients.RunningCount);
+    }
+
+    [Fact]
+    public async Task CopiesOfChatEnabledClientsCanRestoreTheirOriginalBundleWithoutChangingTheSource()
+    {
+        var build = Prepare();
+        await File.WriteAllBytesAsync(Path.Combine(_root, "ResFiles", "resource"), [1], TestContext.Current.CancellationToken);
+        byte[] original = File.ReadAllBytes(BundlePath);
+        var trust = (
+            await ChatTrust.PrepareAsync(_root, Server().ChatCertificatePem, TestContext.Current.CancellationToken, build.ChatBundleHash)
+        )!;
+        await trust.ApplyAsync(TestContext.Current.CancellationToken);
+        string destination = Directory.CreateTempSubdirectory("eden-chat-copy-").FullName;
+        try
+        {
+            await new ClientInstallation(build).PrepareAsync(_root, destination, null, TestContext.Current.CancellationToken);
+            var restore = (await ChatTrust.PrepareAsync(destination, null, TestContext.Current.CancellationToken, build.ChatBundleHash))!;
+            await restore.ApplyAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(original, restore.Contents);
+            Assert.Equal(original, File.ReadAllBytes(restore.Path));
+            Assert.Equal(trust.Contents, File.ReadAllBytes(BundlePath));
+            await new ClientInstallation(build).AdoptAsync(destination, TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            Directory.Delete(destination, recursive: true);
+        }
+    }
+
     private ClientBuild Prepare()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(BundlePath)!);
@@ -98,14 +225,15 @@ public sealed class ChatManifestTests : IDisposable
         writer.Write(name);
         writer.Write(SHA256.HashSizeInBytes);
         Assert.Equal(ClientManifest.ChatHashOffset, stream.Position);
-        writer.Write(Convert.FromHexString(ClientManifest.OriginalChatHash));
+        string bundleHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(BundlePath)));
+        writer.Write(Convert.FromHexString(bundleHash));
         int timestampLength = ClientBuild.ManifestPrefixLength - (int)stream.Position - sizeof(int) * 2;
         writer.Write(timestampLength);
         writer.Write(new byte[timestampLength]);
         writer.Write(0); // Public key flag.
         byte[] prefix = stream.ToArray();
         File.WriteAllBytes(ManifestPath, Sign(prefix));
-        return new([], prefix.Length, Convert.ToHexString(SHA256.HashData(prefix)));
+        return new([], prefix.Length, Convert.ToHexString(SHA256.HashData(prefix)), bundleHash);
     }
 
     private static byte[] Sign(byte[] prefix)

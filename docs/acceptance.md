@@ -89,3 +89,35 @@ Play and launch groups refresh server metadata, bind launch tickets to the activ
 **Live acceptance:** Not performed; agent client testing is disabled.
 
 **Optional maintainer checks:** Publish a skill package in Eden's web editor and restart the server, then Play and verify the skill; launch another account from a group with that package; close the games and switch to a server without edits to check stock restoration.
+
+## Launcher reliability fixes — November 9, 2026
+
+Fixed five issues found during launcher review:
+
+- Accounts navigation is disabled during active work, and Play keeps its captured server address, client folder and session across awaits.
+- Invalid server addresses and malformed replies produce recoverable messages. Group launches report malformed replies per account and continue without exposing response contents.
+- Switching to a server without a chat certificate restores the exact pinned original certificate bundle. Recovery also supports earlier launchers' appended certificates and newly prepared copies of those clients. It verifies the original fingerprint before changing files and keeps the older server's request format unchanged.
+- Rechecking a client clears readiness before verification; failures and cancellation leave Play disabled until verification succeeds.
+- Selecting an account with a rejected remembered sign-in clears its stale credentials and cached session and opens the prefilled sign-in form.
+
+### Automated validation
+
+Tool restore, solution restore, Release build (zero warnings/errors), **62 focused tests**, formatting verification and diff whitespace checks passed in **8.23 seconds** for the final code. This includes **20 new regression cases** covering the five fixes, damaged bundles, unchanged files after rejected tickets, preparation from a chat-enabled source, invalid gateway addresses and continuing group launches after malformed replies.
+
+Development began with the exact filter `FullyQualifiedName=Eden.Launcher.Tests.ViewModelTests.AccountsCannotInterruptPlayAndLaunchKeepsItsCapturedSession`, then exact filters for the other new cases. The final command was:
+
+```powershell
+dotnet test tests/Eden.Launcher.Tests/Eden.Launcher.Tests.csproj --no-build -c Release --filter "FullyQualifiedName~ViewModelTests|FullyQualifiedName~ChatManifestTests|FullyQualifiedName~ChatTrustTests|FullyQualifiedName~ApiAndLaunchTests|FullyQualifiedName~GroupLaunchTests|FullyQualifiedName~InstallationTests|FullyQualifiedName~SkillPackageTests"
+```
+
+Tests use isolated temporary client files, fake account APIs and Avalonia headless controls. No game process was started. No full .NET regression suite was requested or run.
+
+### Live acceptance
+
+Not performed; agent client testing is disabled. Native input, rendering and successful game startup after switching servers remain unverified interactively.
+
+### Optional maintainer checks
+
+- During a slow Play request, confirm the Accounts button stays disabled and becomes available afterward.
+- Switch a previously chat-enabled installation to an older server and confirm native client startup.
+- Select an account whose remembered sign-in expired and sign in through the prefilled form.

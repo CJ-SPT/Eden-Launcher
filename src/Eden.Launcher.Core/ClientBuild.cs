@@ -16,15 +16,18 @@ public sealed class ClientBuild
     public IReadOnlyList<FileFingerprint> Files { get; }
     public int ManifestLength { get; }
     public string ManifestHash { get; }
+    public string ChatBundleHash { get; }
 
     public ClientBuild(
         IReadOnlyList<FileFingerprint>? files = null,
         int manifestLength = ManifestPrefixLength,
-        string manifestHash = ManifestPrefixHash
+        string manifestHash = ManifestPrefixHash,
+        string chatBundleHash = ClientManifest.OriginalChatHash
     )
     {
         ManifestLength = manifestLength;
         ManifestHash = manifestHash;
+        ChatBundleHash = chatBundleHash;
         Files =
             files
             ??
@@ -65,8 +68,10 @@ public sealed class ClientBuild
     public async Task<LaunchRequest> CreateLaunchRequestAsync(string root, ServerReply server, CancellationToken cancellation)
     {
         byte[] prefix = ReadPrefix(root);
-        var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation);
-        return new(Number, Convert.ToBase64String(prefix), trust?.Sha256, server.SkillPackage?.Id);
+        var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation, ChatBundleHash);
+        // Older servers cannot sign a custom bundle hash; restore the pinned bundle at launch instead.
+        string? chatHash = server.ChatCertificatePem is null ? null : trust?.Sha256;
+        return new(Number, Convert.ToBase64String(prefix), chatHash, server.SkillPackage?.Id);
     }
 
     public byte[] ReadPrefix(string root)
@@ -86,7 +91,7 @@ public sealed class ClientBuild
         byte[] prefix = manifest[..ManifestLength];
         if (ManifestLength == ManifestPrefixLength)
         {
-            prefix = ClientManifest.WithChatHash(prefix, ClientManifest.OriginalChatHash);
+            prefix = ClientManifest.WithChatHash(prefix, ChatBundleHash);
             if (Files.FirstOrDefault(file => file.Path == "code.ccp") is { } code)
             {
                 prefix = ClientManifest.WithCodeHash(prefix, code.Sha256);

@@ -44,6 +44,23 @@ public sealed class ApiAndLaunchTests
         await Assert.ThrowsAsync<InvalidDataException>(() => api.ServerAsync(TestContext.Current.CancellationToken));
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not a URL")]
+    [InlineData("/relative")]
+    public async Task MalformedGatewayAddressesAreRejectedAsInvalidData(string? gateway)
+    {
+        using var api = new LauncherApiClient(
+            "http://localhost:26002",
+            new Handler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = JsonContent.Create(new ServerReply("test", "Test", 1, ClientBuild.Number, "localhost:26000", gateway!)),
+            })
+        );
+        await Assert.ThrowsAsync<InvalidDataException>(() => api.ServerAsync(TestContext.Current.CancellationToken));
+    }
+
     [Fact]
     public void LaunchArgumentsPreservePathsAndIsolateAccountSettings()
     {

@@ -28,8 +28,7 @@ public sealed class LauncherApiClient : ILauncherApiClient
 
     public LauncherApiClient(string address, HttpMessageHandler? handler = null)
     {
-        var endpoint = new Uri(address.TrimEnd('/') + "/");
-        ValidateEndpoint(endpoint);
+        var endpoint = new Uri(ParseEndpoint(address).AbsoluteUri.TrimEnd('/') + "/");
         var defaultHandler = new HttpClientHandler { AllowAutoRedirect = false };
         if (TlsTrust.FromEnvironment() is { } trust)
         {
@@ -39,10 +38,21 @@ public sealed class LauncherApiClient : ILauncherApiClient
         _http = new HttpClient(handler ?? defaultHandler) { BaseAddress = endpoint, Timeout = TimeSpan.FromSeconds(20) };
     }
 
+    public static Uri ParseEndpoint(string? address)
+    {
+        if (!Uri.TryCreate(address?.Trim(), UriKind.Absolute, out var endpoint))
+        {
+            throw new InvalidDataException("Enter a valid absolute server address, such as http://127.0.0.1:26002.");
+        }
+        ValidateEndpoint(endpoint);
+        return endpoint;
+    }
+
     public static void ValidateEndpoint(Uri endpoint)
     {
         if (
-            endpoint.UserInfo.Length != 0
+            !endpoint.IsAbsoluteUri
+            || endpoint.UserInfo.Length != 0
             || endpoint.Query.Length != 0
             || endpoint.Fragment.Length != 0
             || (endpoint.Scheme != "https" && !(endpoint.Scheme == "http" && IsLoopback(endpoint.Host)))
@@ -63,7 +73,7 @@ public sealed class LauncherApiClient : ILauncherApiClient
         {
             throw new InvalidDataException("This server does not support this launcher or client build.");
         }
-        ValidateEndpoint(new Uri(server.GatewayAddress));
+        ParseEndpoint(server.GatewayAddress);
         _ = GameEndpoint.Parse(server.GameAddress);
         return server;
     }

@@ -231,6 +231,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(PlayLabel));
         NewGroupCommand.NotifyCanExecuteChanged();
         SaveGroupCommand.NotifyCanExecuteChanged();
+        OpenAccountCommand.NotifyCanExecuteChanged();
         RefreshPlay();
     }
 
@@ -297,8 +298,22 @@ public partial class MainViewModel : ObservableObject
             if (_credentials.Read(ApiAddress, account.UserName) is { } refresh)
             {
                 using var api = _apiFactory(ApiAddress);
-                await AcceptSessionAsync(await api.RefreshAsync(refresh, cancellation));
-                return;
+                try
+                {
+                    var session = await api.RefreshAsync(refresh, cancellation);
+                    if (session.AccountId != account.AccountId)
+                    {
+                        throw new InvalidDataException("Remembered sign-in belongs to another account. Sign in again.");
+                    }
+                    await AcceptSessionAsync(session);
+                    return;
+                }
+                catch (LauncherApiException error) when (error.Code == "unauthorized")
+                {
+                    _credentials.Write(ApiAddress, account.UserName, null);
+                    _sessions.Remove(key);
+                    Status = "Your remembered sign-in expired. Sign in again.";
+                }
             }
             ShowAccountDialog = true;
             AccountStatus = "Sign in to " + account.UserName;
@@ -310,9 +325,13 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void CloseSettings() => ShowSettings = false;
 
-    [RelayCommand]
+    [RelayCommand(CanExecute = nameof(CanWork))]
     private void OpenAccount()
     {
+        if (IsBusy)
+        {
+            return;
+        }
         _session = null;
         IsSignedIn = false;
         UserName = "";
@@ -381,7 +400,7 @@ public partial class MainViewModel : ObservableObject
     private Task SaveServerAsync() =>
         RunAsync(async _ =>
         {
-            LauncherApiClient.ValidateEndpoint(new Uri(ApiAddress));
+            LauncherApiClient.ParseEndpoint(ApiAddress);
             await SaveCoreAsync();
             Status = "Server profile saved.";
         });
@@ -514,6 +533,8 @@ public partial class MainViewModel : ObservableObject
 
     private async Task ValidateClientCoreAsync(CancellationToken cancellation)
     {
+        ClientReady = false;
+        ClientStatus = "Client verification required.";
         await _installation.AdoptAsync(ClientRoot, cancellation);
         ClientReady = true;
         ClientStatus = "READY · Client build 3662168 verified";
@@ -543,22 +564,28 @@ public partial class MainViewModel : ObservableObject
     private Task PlayAsync() =>
         RunAsync(async cancellation =>
         {
-            using var api = _apiFactory(ApiAddress);
-            if (_session!.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() + SessionRefreshLeadSeconds)
+            string address = ApiAddress;
+            string root = ClientRoot;
+            var session = _session ?? throw new InvalidOperationException("Sign in before launching the game.");
+            using var api = _apiFactory(address);
+            if (session.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() + SessionRefreshLeadSeconds)
             {
                 string refresh =
-                    _credentials.Read(ApiAddress, UserName) ?? throw new InvalidOperationException("Please sign out and sign in again.");
-                await AcceptSessionAsync(await api.RefreshAsync(refresh, cancellation));
+                    _credentials.Read(address, session.UserName)
+                    ?? throw new InvalidOperationException("Please sign out and sign in again.");
+                session = await api.RefreshAsync(refresh, cancellation);
+                await AcceptSessionAsync(session);
             }
-            _server = await api.ServerAsync(cancellation);
-            var request = await _build.CreateLaunchRequestAsync(ClientRoot, _server!, cancellation);
-            var launch = await api.LaunchAsync(_session.AccessToken, request, cancellation);
-            if (_server.SkillPackage is not null)
+            var server = await api.ServerAsync(cancellation);
+            _server = server;
+            var request = await _build.CreateLaunchRequestAsync(root, server, cancellation);
+            var launch = await api.LaunchAsync(session.AccessToken, request, cancellation);
+            if (server.SkillPackage is not null)
             {
                 Status = "Checking server skill updates…";
             }
-            launch = await ClientSkillArchive.DownloadForLaunchAsync(api, ClientRoot, _server, _session, launch, cancellation);
-            await _launcher.LaunchAsync(ClientRoot, _server!, _session, launch, cancellation);
+            launch = await ClientSkillArchive.DownloadForLaunchAsync(api, root, server, session, launch, cancellation);
+            await _launcher.LaunchAsync(root, server, session, launch, cancellation);
             RunningCount = _launcher.RunningCount;
             Status = "Game launched. Fly safe.";
         });
@@ -589,7 +616,7 @@ public partial class MainViewModel : ObservableObject
         catch (Exception error) when (IsOperationError(error))
         {
             IsError = true;
-            Status = error is HttpRequestException ? "Could not reach the server. Check its address and certificate." : error.Message;
+            Status = OperationErrorMessage(error);
         }
         finally
         {
@@ -598,12 +625,22 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    private static string OperationErrorMessage(Exception error) =>
+        error switch
+        {
+            HttpRequestException => "Could not reach the server. Check its address and certificate.",
+            FormatException or System.Text.Json.JsonException => "The server returned invalid data. Check its address and try again.",
+            _ => error.Message,
+        };
+
     private static bool IsOperationError(Exception error) =>
         error
             is IOException
                 or InvalidDataException
                 or InvalidOperationException
                 or ArgumentException
+                or FormatException
+                or System.Text.Json.JsonException
                 or System.Security.Cryptography.CryptographicException
                 or HttpRequestException
                 or LauncherApiException;

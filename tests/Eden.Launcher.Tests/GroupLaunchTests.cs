@@ -285,6 +285,28 @@ public sealed class GroupLaunchTests : IDisposable
         Assert.Null(loaded.Groups);
     }
 
+    [AvaloniaFact]
+    public async Task MalformedRepliesDoNotExposeContentsOrStopLaterGroupMembers()
+    {
+        var model = await CreateAsync(members: [1, 2, 3]);
+        foreach (long id in new long[] { 1, 2, 3 })
+        {
+            _credentials.Write(model.ApiAddress, "Pilot" + id, "refresh-" + id);
+        }
+        _api.ReplyErrors[1] = new FormatException("private response");
+        _api.ReplyErrors[2] = new JsonException("private response");
+        await model.LaunchGroupCommand.ExecuteAsync(null);
+        Assert.Equal(new long[] { 3 }, _launcher.Launched);
+        Assert.Equal(3, model.GroupResults.Count);
+        Assert.Contains("invalid data", model.GroupResults[0]);
+        Assert.Contains("invalid data", model.GroupResults[1]);
+        Assert.All(model.GroupResults, result => Assert.DoesNotContain("private response", result));
+        Assert.True(model.IsError);
+        Assert.False(model.IsBusy);
+        Assert.Contains("1 launched", model.GroupStatus);
+        Assert.Contains("2 need attention", model.GroupStatus);
+    }
+
     private sealed class Credentials : ICredentialStore
     {
         private readonly Dictionary<(string Address, string Name), string?> _values = [];
@@ -339,6 +361,7 @@ public sealed class GroupLaunchTests : IDisposable
         public HashSet<long> FailTickets { get; } = [];
         public HashSet<long> Unauthorized { get; } = [];
         public HashSet<long> TimeoutTickets { get; } = [];
+        public Dictionary<long, Exception> ReplyErrors { get; } = [];
         public long SignInExpiresAt { get; set; } = long.MaxValue;
         public Action<CancellationToken>? BeforeTicket { get; set; }
 
@@ -374,6 +397,10 @@ public sealed class GroupLaunchTests : IDisposable
             Assert.Equal(ClientBuild.Number, request.Build);
             Assert.Equal(Convert.ToBase64String(s_prefix), request.ManifestPrefix);
             BeforeTicket?.Invoke(cancellation);
+            if (ReplyErrors.TryGetValue(id, out var error))
+            {
+                throw error;
+            }
             if (TimeoutTickets.Contains(id))
             {
                 throw new TaskCanceledException("timeout");

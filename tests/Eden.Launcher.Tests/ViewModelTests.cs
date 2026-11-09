@@ -1,7 +1,9 @@
+using System.Security.Cryptography;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using Eden.Launcher.Core;
 
@@ -99,6 +101,157 @@ public sealed class ViewModelTests
         Assert.False(model.CanPlay);
     }
 
+    [AvaloniaFact]
+    public async Task AccountsCannotInterruptPlayAndLaunchKeepsItsCapturedSession()
+    {
+        string root = Directory.CreateTempSubdirectory("eden-launch-race-").FullName;
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "tq"));
+            byte[] prefix = [1, 2, 3, 4];
+            await File.WriteAllBytesAsync(Path.Combine(root, "tq", "manifest.dat"), prefix, TestContext.Current.CancellationToken);
+            var api = new Api();
+            var launcher = new Launcher();
+            var build = new ClientBuild([], prefix.Length, Convert.ToHexString(SHA256.HashData(prefix)));
+            var model = new MainViewModel(new Settings(), new Credentials(), new Installation(), launcher, _ => api, build);
+            await model.InitializeAsync();
+            model.UserName = "Developer";
+            await model.AccountCommand.ExecuteAsync(null);
+            model.ClientRoot = root;
+            await model.UseClientCommand.ExecuteAsync(null);
+            var pending = new TaskCompletionSource<ServerReply>(TaskCreationOptions.RunContinuationsAsynchronously);
+            api.PendingServer = pending.Task;
+            var window = new MainWindow { DataContext = model };
+            window.Show();
+            Task play = model.PlayCommand.ExecuteAsync(null);
+            try
+            {
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(model.IsBusy);
+                Assert.False(model.OpenAccountCommand.CanExecute(null));
+                Assert.False(window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Accounts")).IsEnabled);
+                model.OpenAccountCommand.Execute(null);
+                Assert.True(model.IsSignedIn);
+                Assert.False(model.ShowAccountDialog);
+                // A connection reset must not replace the identity already captured by the pending launch.
+                model.ApiAddress = "https://another.example";
+            }
+            finally
+            {
+                pending.SetResult(Api.Server);
+                await play;
+                window.Close();
+            }
+            Assert.Equal("access", api.LaunchedAccess);
+            Assert.Equal(1000003, launcher.LaunchedSession!.AccountId);
+            Assert.Equal(root, launcher.LaunchedRoot);
+            Assert.False(model.IsError);
+            Assert.False(model.IsBusy);
+            Assert.True(model.OpenAccountCommand.CanExecute(null));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData("")]
+    [InlineData("not a URL")]
+    [InlineData("/relative/path")]
+    [InlineData("https://")]
+    public async Task InvalidServerAddressesAreReportedByConnectAndSave(string address)
+    {
+        var model = new MainViewModel(new Settings(), new Credentials(), new Installation(), new Launcher());
+        model.ApiAddress = address;
+        await model.ConnectCommand.ExecuteAsync(null);
+        Assert.True(model.IsError);
+        Assert.False(model.IsConnected);
+        Assert.False(model.CanPlay);
+        Assert.False(model.IsBusy);
+        Assert.Contains("server address", model.Status);
+        await model.SaveServerCommand.ExecuteAsync(null);
+        Assert.True(model.IsError);
+        Assert.False(model.IsBusy);
+        Assert.Contains("server address", model.Status);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MalformedServerRepliesAreReportedWithoutExposingTheirContents(bool json)
+    {
+        var api = new Api
+        {
+            ServerError = json ? new System.Text.Json.JsonException("private response") : new FormatException("private response"),
+        };
+        var model = Create(api, new Credentials());
+        await model.InitializeAsync();
+        Assert.True(model.IsError);
+        Assert.False(model.IsBusy);
+        Assert.False(model.IsConnected);
+        Assert.Contains("invalid data", model.Status);
+        Assert.DoesNotContain("private response", model.Status);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedOrCancelledClientRecheckClearsReadiness(bool cancelled)
+    {
+        var installation = new Installation();
+        var api = new Api();
+        var model = new MainViewModel(new Settings(), new Credentials(), installation, new Launcher(), _ => api);
+        await model.InitializeAsync();
+        await model.AccountCommand.ExecuteAsync(null);
+        model.ClientRoot = "fixture";
+        await model.UseClientCommand.ExecuteAsync(null);
+        Assert.True(model.CanPlay);
+        installation.AdoptError = cancelled ? new OperationCanceledException() : new IOException("damaged client");
+        await model.UseClientCommand.ExecuteAsync(null);
+        Assert.False(model.ClientReady);
+        Assert.False(model.CanPlay);
+        Assert.False(model.PlayCommand.CanExecute(null));
+        Assert.False(model.IsBusy);
+        Assert.DoesNotContain("READY", model.ClientStatus);
+        installation.AdoptError = null;
+        await model.UseClientCommand.ExecuteAsync(null);
+        Assert.True(model.CanPlay);
+    }
+
+    [AvaloniaFact]
+    public async Task ExpiredSavedSignInClearsCredentialsAndOpensThePrefilledForm()
+    {
+        var api = new Api { SessionExpiry = 0 };
+        var credentials = new Credentials();
+        var model = Create(api, credentials);
+        await model.InitializeAsync();
+        model.UserName = "Developer";
+        model.RememberMe = true;
+        await model.AccountCommand.ExecuteAsync(null);
+        var account = model.SelectedAccount!;
+        model.SelectedAccount = null;
+        api.RejectRefresh = true;
+        model.SelectedAccount = account;
+        Assert.False(model.IsBusy);
+        Assert.False(model.IsSignedIn);
+        Assert.False(model.CanPlay);
+        Assert.Null(credentials.Value);
+        Assert.True(model.ShowAccountDialog);
+        Assert.Equal(account.UserName, model.UserName);
+        Assert.Equal("Sign in to " + account.UserName, model.AccountStatus);
+        Assert.Contains("expired", model.Status);
+        Assert.Equal(1, api.RefreshCalls);
+        model.SelectedAccount = null;
+        model.SelectedAccount = account;
+        Assert.Equal(1, api.RefreshCalls);
+        api.SessionExpiry = long.MaxValue;
+        await model.AccountCommand.ExecuteAsync(null);
+        Assert.True(model.IsSignedIn);
+        Assert.False(model.ShowAccountDialog);
+        Assert.Equal("refresh", credentials.Value);
+    }
+
     private static MainViewModel Create(Api api, Credentials credentials) =>
         new(new Settings(), credentials, new Installation(), new Launcher(), _ => api);
 
@@ -120,7 +273,10 @@ public sealed class ViewModelTests
 
     private sealed class Installation : IClientInstallation
     {
-        public Task AdoptAsync(string root, CancellationToken cancellation) => Task.CompletedTask;
+        public Exception? AdoptError { get; set; }
+
+        public Task AdoptAsync(string root, CancellationToken cancellation) =>
+            AdoptError is { } error ? Task.FromException(error) : Task.CompletedTask;
 
         public Task PrepareAsync(
             string source,
@@ -132,6 +288,8 @@ public sealed class ViewModelTests
 
     private sealed class Launcher : IClientLauncher
     {
+        public SessionReply? LaunchedSession { get; private set; }
+        public string? LaunchedRoot { get; private set; }
         public int RunningCount => 0;
 
         public bool IsRunning(string serverId, long accountId) => false;
@@ -142,13 +300,12 @@ public sealed class ViewModelTests
             remove { }
         }
 
-        public Task LaunchAsync(
-            string root,
-            ServerReply server,
-            SessionReply session,
-            LaunchReply launch,
-            CancellationToken cancellation
-        ) => Task.CompletedTask;
+        public Task LaunchAsync(string root, ServerReply server, SessionReply session, LaunchReply launch, CancellationToken cancellation)
+        {
+            LaunchedSession = session;
+            LaunchedRoot = root;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class Api : ILauncherApiClient
@@ -156,11 +313,18 @@ public sealed class ViewModelTests
         public bool Offline { get; set; }
         public AccountRequest? Registration { get; private set; }
         public bool SignedOut { get; private set; }
+        public Task<ServerReply>? PendingServer { get; set; }
+        public Exception? ServerError { get; set; }
+        public bool RejectRefresh { get; set; }
+        public long SessionExpiry { get; set; } = long.MaxValue;
+        public int RefreshCalls { get; private set; }
+        public string? LaunchedAccess { get; private set; }
+        public static ServerReply Server => new("test", "Test", 1, ClientBuild.Number, "localhost:26000", "http://localhost:26001");
 
         public Task<ServerReply> ServerAsync(CancellationToken cancellation = default) =>
-            Offline
-                ? throw new HttpRequestException("offline")
-                : Task.FromResult(new ServerReply("test", "Test", 1, ClientBuild.Number, "localhost:26000", "http://localhost:26001"));
+            ServerError is { } error ? Task.FromException<ServerReply>(error)
+            : Offline ? throw new HttpRequestException("offline")
+            : PendingServer ?? Task.FromResult(Server);
 
         public Task<AccountReply> RegisterAsync(AccountRequest request, CancellationToken cancellation = default)
         {
@@ -170,11 +334,16 @@ public sealed class ViewModelTests
 
         public Task<SessionReply> SignInAsync(SignInRequest request, CancellationToken cancellation = default) =>
             Task.FromResult(
-                new SessionReply(1000003, request.UserName, "access", long.MaxValue, request.RememberMe ? "refresh" : null, true)
+                new SessionReply(1000003, request.UserName, "access", SessionExpiry, request.RememberMe ? "refresh" : null, true)
             );
 
-        public Task<SessionReply> RefreshAsync(string refreshToken, CancellationToken cancellation = default) =>
-            SignInAsync(new("Developer", "", true), cancellation);
+        public Task<SessionReply> RefreshAsync(string refreshToken, CancellationToken cancellation = default)
+        {
+            RefreshCalls++;
+            return RejectRefresh
+                ? Task.FromException<SessionReply>(new LauncherApiException("unauthorized", "expired"))
+                : SignInAsync(new("Developer", "", true), cancellation);
+        }
 
         public Task SignOutAsync(string accessToken, CancellationToken cancellation = default)
         {
@@ -182,8 +351,11 @@ public sealed class ViewModelTests
             return Task.CompletedTask;
         }
 
-        public Task<LaunchReply> LaunchAsync(string accessToken, LaunchRequest request, CancellationToken cancellation = default) =>
-            throw new NotSupportedException();
+        public Task<LaunchReply> LaunchAsync(string accessToken, LaunchRequest request, CancellationToken cancellation = default)
+        {
+            LaunchedAccess = accessToken;
+            return Task.FromResult(new LaunchReply("ticket", long.MaxValue, "manifest"));
+        }
 
         public void Dispose() { }
     }

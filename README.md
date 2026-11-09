@@ -8,7 +8,7 @@ The account header contains **Add account**. Compact cards highlight the selecte
 
 ## Native chat
 
-For updated Eden servers, Play automatically adds the server’s public chat certificate to the prepared client copy’s certifi bundle. The server signs the matching certificate-bundle hash while keeping every other client file pinned. Existing public roots are preserved and repeated launches are idempotent. This enables native TLS chat on TCP 5222 without modifying the source EVE installation, installing an OS trust root or disabling TLS. Older servers that omit the optional certificate field retain their current behavior. The server and launcher both need their chat updates rebuilt.
+For updated Eden servers, Play automatically adds the server’s public chat certificate to the prepared client copy’s certifi bundle. The server signs the matching certificate-bundle hash while keeping every other client file pinned. Existing public roots are preserved and repeated launches are idempotent. This enables native TLS chat on TCP 5222 without modifying the source EVE installation, installing an OS trust root or disabling TLS. When switching to a server that omits the optional certificate field, Play restores the exact pinned original bundle, including clients modified by earlier launchers. Unrecognized bundle edits are rejected before changing files. The server and launcher both need their chat updates rebuilt.
 
 ## Run
 

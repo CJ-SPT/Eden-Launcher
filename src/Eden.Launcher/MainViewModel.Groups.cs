@@ -207,7 +207,7 @@ public partial class MainViewModel
                 catch (Exception error) when (IsOperationError(error))
                 {
                     failed++;
-                    string message = error is HttpRequestException ? "Could not reach the server." : error.Message;
+                    string message = OperationErrorMessage(error);
                     GroupResults.Add($"{name}: {message}");
                 }
             }

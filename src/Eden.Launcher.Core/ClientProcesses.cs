@@ -58,7 +58,7 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
                 await ClientSkillArchive.RecoverAsync(root, build, cancellation);
                 await build.VerifyAsync(root, cancellation);
                 byte[] prefix = build.ReadPrefix(root);
-                var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation);
+                var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation, build.ChatBundleHash);
                 prefix = ClientManifest.WithChatHash(prefix, trust?.Sha256);
                 prefix = ClientManifest.WithCodeHash(prefix, server.SkillPackage?.CodeSha256);
                 byte[] manifest = Convert.FromBase64String(launch.Manifest);
