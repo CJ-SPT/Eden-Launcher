@@ -71,7 +71,13 @@ public sealed class ClientBuild
         var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation, ChatBundleHash);
         // Older servers cannot sign a custom bundle hash; restore the pinned bundle at launch instead.
         string? chatHash = server.ChatCertificatePem is null ? null : trust?.Sha256;
-        return new(Number, Convert.ToBase64String(prefix), chatHash, server.SkillPackage?.Id);
+        return new(
+            Number,
+            Convert.ToBase64String(prefix),
+            chatHash,
+            server.ModSet is null ? server.SkillPackage?.Id : null,
+            server.ModSet?.Id
+        );
     }
 
     public byte[] ReadPrefix(string root)

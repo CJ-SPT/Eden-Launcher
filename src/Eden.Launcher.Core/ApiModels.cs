@@ -6,7 +6,13 @@ public sealed record SignInRequest(string UserName, string Password, bool Rememb
 
 public sealed record RefreshRequest(string RefreshToken);
 
-public sealed record LaunchRequest(int Build, string ManifestPrefix, string? ChatBundleSha256 = null, string? SkillPackageId = null);
+public sealed record LaunchRequest(
+    int Build,
+    string ManifestPrefix,
+    string? ChatBundleSha256 = null,
+    string? SkillPackageId = null,
+    string? ModSetId = null
+);
 
 public sealed record AccountReply(long AccountId, string UserName, bool Developer = false);
 
@@ -27,6 +33,13 @@ public sealed record LaunchReply(string Ticket, long ExpiresAt, string Manifest)
 
 public sealed record SkillClientPackage(string Id, long Generation, string CodeSha256, long CodeLength);
 
+public sealed record ModDependency(string Id, string Version);
+
+public sealed record ModSetPackage(string Id, long Generation, string CodeSha256, long CodeLength, IReadOnlyList<ModDependency> Mods)
+{
+    public SkillClientPackage AsArchive() => new(Id, Generation, CodeSha256, CodeLength);
+}
+
 public sealed record ApiError(string Code, string Message);
 
 public sealed record ServerReply(
@@ -37,5 +50,10 @@ public sealed record ServerReply(
     string GameAddress,
     string GatewayAddress,
     string? ChatCertificatePem = null,
-    SkillClientPackage? SkillPackage = null
-);
+    SkillClientPackage? SkillPackage = null,
+    ModSetPackage? ModSet = null
+)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public SkillClientPackage? ClientPackage => ModSet?.AsArchive() ?? SkillPackage;
+}

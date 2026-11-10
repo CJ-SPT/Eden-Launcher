@@ -178,5 +178,60 @@ public sealed class SkillPackageTests : IDisposable
             Task.FromResult(handle(request));
     }
 
+    [Fact]
+    public async Task ModSetsUseAuthenticatedV2DownloadsAndTheExistingVerifiedInstallationPipeline()
+    {
+        var build = Prepare();
+        byte[] edited = [8, 7, 6, 5];
+        var set = new ModSetPackage(new string('C', 64), 3, Hash(edited), edited.Length, [new("example.hello", "1.0.0")]);
+        var server = new ServerReply("test", "Test", 2, ClientBuild.Number, "127.0.0.1:26000", "https://server.example", ModSet: set);
+        using var api = new LauncherApiClient(
+            "https://server.example",
+            new Handler(request =>
+            {
+                Assert.Equal("https://server.example/api/v2/mod-sets/" + set.Id + "/code", request.RequestUri!.AbsoluteUri);
+                Assert.Equal("access", request.Headers.Authorization!.Parameter);
+                return new(HttpStatusCode.OK) { Content = new ByteArrayContent(edited) };
+            })
+        );
+        var request = await build.CreateLaunchRequestAsync(_root, server, TestContext.Current.CancellationToken);
+        Assert.Equal(set.Id, request.ModSetId);
+        Assert.Null(request.SkillPackageId);
+        var session = new SessionReply(1, "Pilot", "access", long.MaxValue, null);
+        var launch = await ClientSkillArchive.DownloadForLaunchAsync(
+            api,
+            _root,
+            server,
+            session,
+            new("ticket", long.MaxValue, ""),
+            TestContext.Current.CancellationToken
+        );
+        Assert.Equal(edited, launch.SkillArchive);
+        Assert.Equal(set.AsArchive(), server.ClientPackage);
+        var change = await ClientSkillArchive.PrepareAsync(
+            _root,
+            build,
+            server.ClientPackage,
+            launch.SkillArchive,
+            TestContext.Current.CancellationToken
+        );
+        await ClientSkillArchive.ApplyAsync(_root, build, change, TestContext.Current.CancellationToken);
+        Assert.Equal(edited, File.ReadAllBytes(Archive));
+        Assert.Equal(_original, File.ReadAllBytes(Path.Combine(_root, ClientSkillArchive.OriginalArchive)));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task ServerDiscoverySupportsBothProtocolVersions(int version)
+    {
+        var server = new ServerReply("test", "Test", version, ClientBuild.Number, "127.0.0.1:26000", "https://server.example");
+        using var api = new LauncherApiClient(
+            "https://server.example",
+            new Handler(_ => new(HttpStatusCode.OK) { Content = System.Net.Http.Json.JsonContent.Create(server) })
+        );
+        Assert.Equal(version, (await api.ServerAsync(TestContext.Current.CancellationToken)).ApiVersion);
+    }
+
     public void Dispose() => Directory.Delete(_root, recursive: true);
 }

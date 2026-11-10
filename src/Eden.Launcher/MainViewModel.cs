@@ -580,7 +580,7 @@ public partial class MainViewModel : ObservableObject
             _server = server;
             var request = await _build.CreateLaunchRequestAsync(root, server, cancellation);
             var launch = await api.LaunchAsync(session.AccessToken, request, cancellation);
-            if (server.SkillPackage is not null)
+            if (server.ClientPackage is not null)
             {
                 Status = "Checking server skill updates…";
             }

@@ -7,6 +7,8 @@ namespace Eden.Launcher.Core;
 
 public interface ILauncherApiClient : IDisposable
 {
+    Task<byte[]> ModArchiveAsync(string accessToken, ModSetPackage package, CancellationToken cancellation = default) =>
+        Task.FromException<byte[]>(new InvalidOperationException("This launcher connection does not support mod sets."));
     Task<ServerReply> ServerAsync(CancellationToken cancellation = default);
     Task<AccountReply> RegisterAsync(AccountRequest request, CancellationToken cancellation = default);
     Task<SessionReply> SignInAsync(SignInRequest request, CancellationToken cancellation = default);
@@ -69,7 +71,11 @@ public sealed class LauncherApiClient : ILauncherApiClient
     public async Task<ServerReply> ServerAsync(CancellationToken cancellation = default)
     {
         var server = await SendAsync<ServerReply>(HttpMethod.Get, "server", null, null, cancellation);
-        if (server.ApiVersion != 1 || server.ClientBuild != ClientBuild.Number)
+        if (
+            server.ApiVersion is not (1 or 2)
+            || server.ClientBuild != ClientBuild.Number
+            || server.ModSet is not null && server.ApiVersion != 2
+        )
         {
             throw new InvalidDataException("This server does not support this launcher or client build.");
         }
@@ -99,10 +105,16 @@ public sealed class LauncherApiClient : ILauncherApiClient
     public Task<LaunchReply> LaunchAsync(string accessToken, LaunchRequest request, CancellationToken cancellation = default) =>
         SendAsync<LaunchReply>(HttpMethod.Post, "launch-tickets", JsonContent.Create(request), accessToken, cancellation);
 
-    public async Task<byte[]> SkillArchiveAsync(string accessToken, SkillClientPackage package, CancellationToken cancellation = default)
+    public Task<byte[]> SkillArchiveAsync(string accessToken, SkillClientPackage package, CancellationToken cancellation = default) =>
+        DownloadArchive(accessToken, package, "api/v1/skill-packages/" + package.Id + "/code", cancellation);
+
+    public Task<byte[]> ModArchiveAsync(string accessToken, ModSetPackage package, CancellationToken cancellation = default) =>
+        DownloadArchive(accessToken, package.AsArchive(), "api/v2/mod-sets/" + package.Id + "/code", cancellation);
+
+    private async Task<byte[]> DownloadArchive(string accessToken, SkillClientPackage package, string path, CancellationToken cancellation)
     {
         ClientSkillArchive.Validate(package);
-        using var request = new HttpRequestMessage(HttpMethod.Get, "api/v1/skill-packages/" + package.Id + "/code");
+        using var request = new HttpRequestMessage(HttpMethod.Get, path);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellation);
         if (!response.IsSuccessStatusCode || response.Content.Headers.ContentLength != package.CodeLength)

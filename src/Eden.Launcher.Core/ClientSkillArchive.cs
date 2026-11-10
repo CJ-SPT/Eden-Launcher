@@ -75,7 +75,7 @@ public static class ClientSkillArchive
         CancellationToken cancellation
     )
     {
-        if (server.SkillPackage is not { } package)
+        if (server.ClientPackage is not { } package)
         {
             return launch;
         }
@@ -88,7 +88,12 @@ public static class ClientSkillArchive
         {
             return launch;
         }
-        return launch with { SkillArchive = await api.SkillArchiveAsync(session.AccessToken, package, cancellation) };
+        return launch with
+        {
+            SkillArchive = server.ModSet is { } set
+                ? await api.ModArchiveAsync(session.AccessToken, set, cancellation)
+                : await api.SkillArchiveAsync(session.AccessToken, package, cancellation),
+        };
     }
 
     public static async Task<SkillArchiveChange?> PrepareAsync(

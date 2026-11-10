@@ -60,10 +60,10 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
                 byte[] prefix = build.ReadPrefix(root);
                 var trust = await ChatTrust.PrepareAsync(root, server.ChatCertificatePem, cancellation, build.ChatBundleHash);
                 prefix = ClientManifest.WithChatHash(prefix, trust?.Sha256);
-                prefix = ClientManifest.WithCodeHash(prefix, server.SkillPackage?.CodeSha256);
+                prefix = ClientManifest.WithCodeHash(prefix, server.ClientPackage?.CodeSha256);
                 byte[] manifest = Convert.FromBase64String(launch.Manifest);
                 ClientInstallation.ValidateSignedManifest(manifest, prefix);
-                var skills = await ClientSkillArchive.PrepareAsync(root, build, server.SkillPackage, launch.SkillArchive, cancellation);
+                var skills = await ClientSkillArchive.PrepareAsync(root, build, server.ClientPackage, launch.SkillArchive, cancellation);
                 string manifestPath = Path.Combine(root, "tq", "manifest.dat");
                 byte[] currentManifest = await File.ReadAllBytesAsync(manifestPath, cancellation);
                 bool manifestChanged = !manifest.AsSpan().SequenceEqual(currentManifest);

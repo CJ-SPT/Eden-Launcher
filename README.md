@@ -23,7 +23,11 @@ The server runs separately. See [server setup](docs/server-setup.md) and [accept
 
 ## Launch groups
 
-Servers can publish skill edits through Eden's local web editor. Play and launch groups check the active skill package and install its verified archive and signed manifest before starting the game. The launcher keeps the pinned original archive, reuses current packages and restores the original when switching to a server without edits. Close games using that installation before changing its package. Update the server and launcher together; older launchers cannot enter a server that requires a skill package.
+Servers select mod sets authored with Eden Modding SDK. Play and launch groups check the required set and install its
+verified client archive and signed manifest before starting the game. The launcher supports server API versions 1
+and 2, including legacy skill packages. It retains the pinned original, recovers interrupted updates, and restores
+original files when switching to an unmodified server. Close games sharing an installation before changing its
+package. Update the launcher with the server; older launchers reject version-2 servers.
 
 In the account column, under **Launch groups**, choose **New group**, give it a name, select its accounts, and save. Choose the saved group and press **Launch group** to start its accounts one after another using the current server profile's verified client. Use **Edit** to rename the group or change its members; **Delete** removes only the group.
 
@@ -64,3 +68,15 @@ Client downloads, automatic updates, server process management, email and passwo
 ## Artwork
 
 The background and capsuleer panel use original, unmodified EVE Online images published on [the official EVE website](https://www.eveonline.com/). URLs and SHA-256 checksums are recorded in `Assets/sources.json` in the desktop project. EVE Online artwork remains the property of CCP Games and its rights holders. Eden is an independent project. No generated artwork is included.
+
+## Mod-set cutover validation — November 9, 2026
+
+Automated validation: tool/solution restore and zero-warning build passed. The focused filter selected
+SkillPackageTests, ViewModelTests, GroupLaunchTests, ApiAndLaunchTests, ChatManifestTests and InstallationTests:
+62 tests passed without skips, with a one-second runner duration and 4.83-second build. Formatting verification
+passed. Coverage includes API versions 1/2, exact ModSetId requests, authenticated downloads, archive verification,
+installation recovery/restoration and individual/group launch behavior. This was an affected-test run.
+
+Live acceptance: Not performed; agent client testing is disabled.
+
+Optional maintainer checks: launch the example mod on the matching updated server and inspect its native window.
