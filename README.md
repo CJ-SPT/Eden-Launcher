@@ -67,7 +67,24 @@ Client downloads, automatic updates, server process management, email and passwo
 
 ## Artwork
 
+The launcher uses the blue outbound-arrow icon from the coordinated Eden application family for the
+executable, window, system tray and navigation rail. Editable SVG, 1024-pixel PNG and multi-size ICO assets
+are included in `src/Eden.Launcher/Assets/eden-launcher.*`. The canonical sources and export instructions are
+in [Eden application icons](https://github.com/CJ-SPT/Eden/tree/main/assets/icons). These original vector
+icons are covered by the repository's MIT license.
+
 The background and capsuleer panel use original, unmodified EVE Online images published on [the official EVE website](https://www.eveonline.com/). URLs and SHA-256 checksums are recorded in `Assets/sources.json` in the desktop project. EVE Online artwork remains the property of CCP Games and its rights holders. Eden is an independent project. No generated artwork is included.
+
+Icon automated validation (November 9, 2026): SVG/PNG/ICO exports and copy equality passed; Windows extracted
+the embedded executable icon. Tool/solution restore, isolated zero-warning build (4.22 seconds) and formatting passed.
+The exact `GroupLaunchTests.GroupControlsBindToCommandsAndRequireConnectionAndVerifiedClient` case passed,
+followed by `FullyQualifiedName~Eden.Launcher.Tests.GroupLaunchTests|FullyQualifiedName~Eden.Launcher.Tests.ViewModelTests`
+(27 passed, 771-millisecond runner duration). The initial normal-output build was blocked by the running
+launcher; successful validation used `--artifacts-path artifacts/icon-validation`. The full suite was not run.
+
+Icon live acceptance: Not performed; agent client testing is disabled.
+
+Icon optional maintainer checks: inspect the rebuilt executable, taskbar, tray and navigation icon at your display scaling.
 
 ## Mod-set cutover validation — November 9, 2026
 

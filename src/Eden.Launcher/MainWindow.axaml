@@ -6,6 +6,7 @@
   x:Class="Eden.Launcher.MainWindow"
   x:DataType="local:MainViewModel"
   Title="Eden Launcher"
+  Icon="/Assets/eden-launcher.ico"
   Width="1420"
   Height="820"
   MinWidth="1160"
@@ -77,7 +78,7 @@
       <Grid RowDefinitions="Auto,Auto,*,Auto">
         <Button Classes="nav" Click="OpenNews" Padding="0" Height="88" HorizontalAlignment="Stretch">
           <StackPanel Spacing="9" HorizontalAlignment="Center">
-            <TextBlock Text="≡" FontSize="32" HorizontalAlignment="Center" />
+            <Image Source="/Assets/eden-launcher.png" Width="36" Height="36" />
             <TextBlock Text="EDEN" Foreground="#59C7CF" FontSize="11" HorizontalAlignment="Center" />
           </StackPanel>
         </Button>

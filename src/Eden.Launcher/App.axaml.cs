@@ -31,7 +31,7 @@ public sealed partial class App : Application
             {
                 window.Title += " · " + new DirectoryInfo(directory).Name;
             }
-            using var iconStream = AssetLoader.Open(new Uri("avares://Eden.Desktop/Assets/eden.ico"));
+            using var iconStream = AssetLoader.Open(new Uri("avares://Eden.Desktop/Assets/eden-launcher.ico"));
             var icon = new WindowIcon(iconStream);
             window.Icon = icon;
             var open = new NativeMenuItem("Open Eden Launcher");
