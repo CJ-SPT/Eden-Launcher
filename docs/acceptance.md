@@ -2,6 +2,24 @@
 
 Automated results, launcher UI checks and native-client observations are recorded separately. The historical native-client checks below were stopped by the user with Escape before final gameplay acceptance.
 
+## Remove signed-out accounts from the launcher
+
+Sign out removes the selected account from the sidebar and saved settings for its server profile. The launcher clears the remembered credentials and saves the removal even if the server cannot be reached.
+
+### Automated validation
+
+Tool restore and offline solution restore passed. The Release build passed with zero warnings and errors in 4.08 seconds. All 29 `ViewModelTests` and `GroupLaunchTests` passed through the xUnit in-process runner in 0.79 seconds. The new regression cases cover local removal, reopening saved settings, and a failed server sign-out. The headless Avalonia window test verifies that the account card is removed from the bound list.
+
+CSharpier, line width, and diff checks passed. The standard test runner could not connect to its test host, the .NET style check could not connect to its build host, and the broader API test run encountered a socket permission error in the loopback relay test.
+
+### Live acceptance
+
+Not performed; agent client testing is disabled.
+
+### Optional maintainer checks
+
+Sign out of one of two accounts in the rebuilt launcher, then reopen it and check the sidebar.
+
 ## Signed chat bundle correction — November 5, 2026
 
 Chat trust previously changed a manifest-covered file without updating its signed hash. The client rejected the root manifest and displayed its fallback error, `Couldn't open manifest file bin:/manifest.dat`. The corrected individual/group paths prepare trust in memory, request the matching signed certifi fingerprint and validate both before changing files or starting the game. Only that hash may vary; the rest of build 3662168 remains pinned. Existing affected prepared copies recover on their next corrected launch. Update/restart the server and launcher together.

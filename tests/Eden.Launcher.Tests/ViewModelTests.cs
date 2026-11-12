@@ -50,11 +50,63 @@ public sealed class ViewModelTests
             window.GetVisualDescendants().OfType<Button>(),
             button => button.Command == model.PrimaryActionCommand && button.IsEnabled
         );
+        var accounts = window.GetVisualDescendants().OfType<ListBox>().Single(list => list.Classes.Contains("accounts"));
+        Assert.Single(accounts.Items);
         await model.SignOutCommand.ExecuteAsync(null);
         Assert.False(model.CanPlay);
+        Assert.Empty(accounts.Items);
+        Assert.False(model.HasAccounts);
+        Assert.Null(model.SelectedAccount);
         Assert.Null(credentials.Value);
         Assert.True(api.SignedOut);
         window.Close();
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SignOutRemovesOnlyTheCurrentAccountFromSavedSettings(bool serverUnavailable)
+    {
+        string directory = Directory.CreateTempSubdirectory("eden-launcher-sign-out-").FullName;
+        try
+        {
+            var profile = new ServerProfile();
+            var otherProfile = new ServerProfile { ApiAddress = "https://other.example" };
+            var otherAccount = new SavedAccount(profile.Id, 1000004, "Other pilot", false);
+            var otherServerAccount = new SavedAccount(otherProfile.Id, 1000003, "Developer", true);
+            var settings = new SettingsStore(directory);
+            await settings.SaveAsync(new([profile, otherProfile], profile.Id, [otherAccount, otherServerAccount]));
+            var credentials = new Credentials();
+            var api = new Api { FailSignOut = serverUnavailable };
+            var model = new MainViewModel(settings, credentials, new Installation(), new Launcher(), _ => api);
+            await model.InitializeAsync();
+            model.UserName = "Developer";
+            model.RememberMe = true;
+            await model.AccountCommand.ExecuteAsync(null);
+            Assert.True(model.IsSignedIn);
+            Assert.Equal(2, model.Accounts.Count);
+
+            await model.SignOutCommand.ExecuteAsync(null);
+
+            Assert.True(api.SignedOut);
+            Assert.Equal(serverUnavailable, model.IsError);
+            Assert.False(model.IsSignedIn);
+            Assert.Equal(otherAccount, Assert.Single(model.Accounts));
+            Assert.Null(model.SelectedAccount);
+            Assert.Empty(model.UserName);
+            Assert.Null(credentials.Value);
+            var reopened = new MainViewModel(new SettingsStore(directory), credentials, new Installation(), new Launcher(), _ => api);
+            await reopened.InitializeAsync();
+            Assert.False(reopened.IsSignedIn);
+            Assert.Empty(reopened.UserName);
+            Assert.Equal(otherAccount, Assert.Single(reopened.Accounts));
+            reopened.SelectedServer = reopened.Servers.Single(server => server.Id == otherProfile.Id);
+            Assert.Equal(otherServerAccount, Assert.Single(reopened.Accounts));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
     }
 
     [AvaloniaFact]
@@ -313,6 +365,7 @@ public sealed class ViewModelTests
         public bool Offline { get; set; }
         public AccountRequest? Registration { get; private set; }
         public bool SignedOut { get; private set; }
+        public bool FailSignOut { get; set; }
         public Task<ServerReply>? PendingServer { get; set; }
         public Exception? ServerError { get; set; }
         public bool RejectRefresh { get; set; }
@@ -348,7 +401,7 @@ public sealed class ViewModelTests
         public Task SignOutAsync(string accessToken, CancellationToken cancellation = default)
         {
             SignedOut = true;
-            return Task.CompletedTask;
+            return FailSignOut ? Task.FromException(new HttpRequestException("offline")) : Task.CompletedTask;
         }
 
         public Task<LaunchReply> LaunchAsync(string accessToken, LaunchRequest request, CancellationToken cancellation = default)

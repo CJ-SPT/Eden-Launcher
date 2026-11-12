@@ -505,27 +505,35 @@ public partial class MainViewModel : ObservableObject
     private Task SignOutAsync() =>
         RunAsync(async cancellation =>
         {
+            if (_session is not { } session || _sessionAddress is not { } address || SelectedServer is not { } profile)
+            {
+                return;
+            }
             try
             {
-                if (_session is not null)
-                {
-                    using var api = _apiFactory(_sessionAddress!);
-                    await api.SignOutAsync(_session.AccessToken, cancellation);
-                }
-                Status = "Signed out. Your running game clients will remain open.";
+                using var api = _apiFactory(address);
+                await api.SignOutAsync(session.AccessToken, cancellation);
             }
             finally
             {
-                if (_session is not null)
-                {
-                    _sessions.Remove(ApiAddress + "\n" + _session.AccountId);
-                }
-                _credentials.Write(ApiAddress, UserName, null);
+                _sessions.Remove(address + "\n" + session.AccountId);
                 _session = null;
+                _sessionAddress = null;
                 IsSignedIn = false;
                 SelectedAccount = null;
+                UserName = "";
                 AccountStatus = "Sign in to your Eden account";
+                _savedAccounts.RemoveAll(saved => saved.ServerProfileId == profile.Id && saved.AccountId == session.AccountId);
+                var account = Accounts.FirstOrDefault(saved => saved.ServerProfileId == profile.Id && saved.AccountId == session.AccountId);
+                if (account is not null)
+                {
+                    Accounts.Remove(account);
+                }
+                OnPropertyChanged(nameof(HasAccounts));
+                _credentials.Write(address, session.UserName, null);
+                await SaveCoreAsync();
             }
+            Status = "Signed out. Your running game clients will remain open.";
         });
 
     [RelayCommand]
