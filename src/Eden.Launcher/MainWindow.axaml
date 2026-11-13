@@ -380,14 +380,28 @@
             </Grid>
             <StackPanel Spacing="6" IsEnabled="{Binding CanWork}">
               <TextBlock Text="Private CA certificate" Classes="label" />
-              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+              <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="10">
                 <TextBox
                   Text="{Binding CertificateAuthorityPath}"
                   AutomationProperties.Name="Private CA certificate"
                   PlaceholderText="Optional · path to the server's CA certificate"
                 />
                 <Button Grid.Column="1" Content="Browse…" Click="BrowseCertificateAuthority" />
+                <Button Grid.Column="2" Content="Download CA" Command="{Binding DownloadCertificateCommand}" />
               </Grid>
+              <StackPanel Spacing="6" IsVisible="{Binding HasCertificateDownload}">
+                <TextBlock Text="Downloaded SHA-256 fingerprint" Classes="label" />
+                <SelectableTextBlock Text="{Binding DownloadedFingerprint}" TextWrapping="Wrap" FontFamily="Consolas" />
+                <TextBox
+                  Text="{Binding ExpectedFingerprint}"
+                  AutomationProperties.Name="Expected SHA-256 fingerprint"
+                  PlaceholderText="Paste the fingerprint from your server operator"
+                />
+                <StackPanel Orientation="Horizontal" Spacing="10">
+                  <Button Content="Verify and connect" Command="{Binding VerifyCertificateCommand}" Classes="primary" />
+                  <Button Content="Cancel" Command="{Binding ClearCertificateDownloadCommand}" />
+                </StackPanel>
+              </StackPanel>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding CanWork}">
               <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="primary" />

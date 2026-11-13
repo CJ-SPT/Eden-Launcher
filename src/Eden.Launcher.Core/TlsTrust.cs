@@ -21,17 +21,34 @@ public static class TlsTrust
         try
         {
             byte[] bytes = File.ReadAllBytes(path);
-            using var authority = X509CertificateLoader.LoadCertificate(bytes);
-            if (authority.Extensions.OfType<X509BasicConstraintsExtension>().All(extension => !extension.CertificateAuthority))
-            {
-                throw new InvalidDataException("Choose the server's CA certificate.");
-            }
+            _ = ReadCertificateAuthority(bytes);
             return (_, certificate, _, errors) => Validate(bytes, certificate, errors);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or CryptographicException)
         {
             throw new InvalidDataException("Could not read the server CA certificate. Check the certificate file in Settings.", error);
         }
+    }
+
+    internal static byte[] ReadCertificateAuthority(byte[] bytes)
+    {
+        using var authority = X509CertificateLoader.LoadCertificate(bytes);
+        if (!authority.Extensions.OfType<X509BasicConstraintsExtension>().Any(extension => extension.CertificateAuthority))
+        {
+            throw new InvalidDataException("Choose the server's CA certificate.");
+        }
+        return authority.RawData;
+    }
+
+    internal static HttpClientHandler CreateHttpHandler(RemoteCertificateValidationCallback? trust)
+    {
+        var handler = new HttpClientHandler { AllowAutoRedirect = false };
+        if (trust is not null)
+        {
+            handler.ServerCertificateCustomValidationCallback = (request, certificate, chain, errors) =>
+                trust(request, certificate, chain, errors);
+        }
+        return handler;
     }
 
     public static bool Validate(byte[] authority, X509Certificate? certificate, SslPolicyErrors errors)

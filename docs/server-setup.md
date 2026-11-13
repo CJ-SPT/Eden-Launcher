@@ -46,6 +46,11 @@ For a private CA, obtain its public certificate from the server operator and kee
 address with the hostname on the server certificate, then use **Browse…** next to **Private CA certificate**. Choose **Connect** to
 connect and save the profile. You can replace or clear the file path and save again to change trust for that profile.
 
+If the server operator has enabled CA downloads, choose **Download CA** instead. Paste the SHA-256 fingerprint you received
+from the operator through a trusted channel and choose **Verify and connect**. The launcher verifies the fingerprint and checks the
+HTTPS connection before saving the certificate to the profile. After a CA rotation, repeat this with the new fingerprint.
+[Eden server configuration](https://github.com/CJ-SPT/Eden/blob/main/docs/launcher.md#ca-certificate-downloads)
+
 The launcher uses the CA for both the API and the game gateway. It still verifies the hostname, certificate chain, validity and server
 authentication. Profiles with a blank path use normal Windows verification. Existing setups using `EDEN_LAUNCHER_CA_FILE` can keep it
 as a process-wide fallback for profiles with a blank path.

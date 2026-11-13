@@ -192,6 +192,7 @@ public partial class MainViewModel : ObservableObject
         {
             return;
         }
+        ClearCertificateDownload();
         _loading = true;
         ServerName = value.Name;
         ApiAddress = value.ApiAddress;
@@ -218,6 +219,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (!_loading)
         {
+            ClearCertificateDownload();
             ResetConnection();
         }
     }
@@ -226,6 +228,7 @@ public partial class MainViewModel : ObservableObject
     {
         if (!_loading)
         {
+            ClearCertificateDownload();
             ResetConnection();
         }
     }
@@ -401,11 +404,16 @@ public partial class MainViewModel : ObservableObject
     private async Task ConnectCoreAsync(CancellationToken cancellation)
     {
         using var api = _apiFactory(ApiAddress, CertificateAuthorityPath.Trim());
-        _server = await api.ServerAsync(cancellation);
-        IsConnected = true;
-        ConnectionStatus = "CONNECTED · " + _server.Name;
-        Status = "Connected. Sign in or create an account.";
+        SetConnected(await api.ServerAsync(cancellation));
         await SaveCoreAsync();
+    }
+
+    private void SetConnected(ServerReply server)
+    {
+        _server = server;
+        IsConnected = true;
+        ConnectionStatus = "CONNECTED · " + server.Name;
+        Status = "Connected. Sign in or create an account.";
     }
 
     [RelayCommand]
@@ -433,7 +441,7 @@ public partial class MainViewModel : ObservableObject
         SelectedServer = profile;
     }
 
-    private async Task SaveCoreAsync()
+    private async Task SaveCoreAsync(string? verifiedAuthorityPath = null)
     {
         if (SelectedServer is null)
         {
@@ -443,11 +451,15 @@ public partial class MainViewModel : ObservableObject
         {
             Name = ServerName.Trim(),
             ApiAddress = ApiAddress.Trim().TrimEnd('/'),
-            CertificateAuthorityPath = string.IsNullOrWhiteSpace(CertificateAuthorityPath) ? null : CertificateAuthorityPath.Trim(),
+            CertificateAuthorityPath =
+                verifiedAuthorityPath ?? (string.IsNullOrWhiteSpace(CertificateAuthorityPath) ? null : CertificateAuthorityPath.Trim()),
             ClientRoot = ClientRoot.Trim(),
             UserName = UserName.Trim(),
         };
         int index = Servers.IndexOf(SelectedServer);
+        var profiles = Servers.ToArray();
+        profiles[index] = profile;
+        await _settings.SaveAsync(new(profiles, profile.Id, _savedAccounts.ToArray(), _savedGroups.ToArray()));
         _updatingProfile = true;
         try
         {
@@ -458,7 +470,6 @@ public partial class MainViewModel : ObservableObject
         {
             _updatingProfile = false;
         }
-        await _settings.SaveAsync(new(Servers.ToArray(), profile.Id, _savedAccounts.ToArray(), _savedGroups.ToArray()));
     }
 
     [RelayCommand]

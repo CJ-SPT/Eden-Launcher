@@ -371,6 +371,9 @@ public sealed class ViewModelTests
         public Task<LauncherSettings> LoadAsync() => Task.FromResult(LauncherSettings.Default());
 
         public Task SaveAsync(LauncherSettings settings) => Task.CompletedTask;
+
+        public Task<string> SaveCertificateAuthorityAsync(byte[] certificate, CancellationToken cancellation) =>
+            throw new NotSupportedException();
     }
 
     private sealed class Credentials : ICredentialStore

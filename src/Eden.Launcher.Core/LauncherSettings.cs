@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace Eden.Launcher.Core;
@@ -45,6 +46,7 @@ public interface ISettingsStore
 {
     Task<LauncherSettings> LoadAsync();
     Task SaveAsync(LauncherSettings settings);
+    Task<string> SaveCertificateAuthorityAsync(byte[] certificate, CancellationToken cancellation);
 }
 
 public interface ICredentialStore
@@ -83,6 +85,15 @@ public sealed class SettingsStore(string directory) : ISettingsStore
     {
         Directory.CreateDirectory(directory);
         await AtomicFile.WriteAsync(_path, JsonSerializer.SerializeToUtf8Bytes(settings, s_json));
+    }
+
+    public async Task<string> SaveCertificateAuthorityAsync(byte[] certificate, CancellationToken cancellation)
+    {
+        string certificateDirectory = Path.Combine(directory, "certificates");
+        Directory.CreateDirectory(certificateDirectory);
+        string path = Path.Combine(certificateDirectory, Convert.ToHexString(SHA256.HashData(certificate)) + ".cer");
+        await AtomicFile.WriteAsync(path, certificate, cancellation);
+        return path;
     }
 }
 

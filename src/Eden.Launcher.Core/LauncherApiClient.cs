@@ -31,18 +31,14 @@ public sealed class LauncherApiClient : ILauncherApiClient
     public LauncherApiClient(string address, HttpMessageHandler? handler = null, string? certificateAuthorityPath = null)
     {
         var endpoint = new Uri(ParseEndpoint(address).AbsoluteUri.TrimEnd('/') + "/");
-        if (handler is null)
+        _http = new HttpClient(
+            handler
+                ?? TlsTrust.CreateHttpHandler(endpoint.Scheme == Uri.UriSchemeHttps ? TlsTrust.ForServer(certificateAuthorityPath) : null)
+        )
         {
-            var trust = endpoint.Scheme == Uri.UriSchemeHttps ? TlsTrust.ForServer(certificateAuthorityPath) : null;
-            var defaultHandler = new HttpClientHandler { AllowAutoRedirect = false };
-            if (trust is not null)
-            {
-                defaultHandler.ServerCertificateCustomValidationCallback = (request, certificate, chain, errors) =>
-                    trust(request, certificate, chain, errors);
-            }
-            handler = defaultHandler;
-        }
-        _http = new HttpClient(handler) { BaseAddress = endpoint, Timeout = TimeSpan.FromSeconds(20) };
+            BaseAddress = endpoint,
+            Timeout = TimeSpan.FromSeconds(20),
+        };
     }
 
     public static Uri ParseEndpoint(string? address)
