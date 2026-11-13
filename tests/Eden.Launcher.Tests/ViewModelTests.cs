@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -18,6 +19,64 @@ public static class TestApplication
 
 public sealed class ViewModelTests
 {
+    [AvaloniaFact]
+    public async Task PrivateCaCertificatePersistsForOnlyItsServerAndCanBeCleared()
+    {
+        string directory = Directory.CreateTempSubdirectory("eden-launcher-ca-").FullName;
+        try
+        {
+            var remote = new ServerProfile { ApiAddress = "https://remote.example" };
+            var local = new ServerProfile();
+            var store = new SettingsStore(directory);
+            await store.SaveAsync(new([remote, local], remote.Id));
+
+            string path = Path.Combine(directory, "remote-ca.cer");
+            using var key = RSA.Create(2048);
+            var request = new CertificateRequest("CN=Eden Test CA", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+            request.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
+            using var root = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(1));
+            await File.WriteAllBytesAsync(path, root.Export(X509ContentType.Cert), TestContext.Current.CancellationToken);
+
+            var api = new Api();
+            string? connectedAuthority = null;
+            ILauncherApiClient Connect(string address, string? authority)
+            {
+                connectedAuthority = authority;
+                return api;
+            }
+            var model = new MainViewModel(store, new Credentials(), new Installation(), new Launcher(), Connect);
+            await model.InitializeAsync();
+            Assert.True(model.IsConnected);
+            model.CertificateAuthorityPath = path + ".missing";
+            Assert.False(model.IsConnected);
+            await model.SaveServerCommand.ExecuteAsync(null);
+            Assert.Contains("Could not read the server CA certificate", model.Status);
+            Assert.Null((await store.LoadAsync()).Servers[0].CertificateAuthorityPath);
+            model.CertificateAuthorityPath = path;
+            await model.SaveServerCommand.ExecuteAsync(null);
+            Assert.False(model.IsError);
+
+            var reopened = new MainViewModel(store, new Credentials(), new Installation(), new Launcher(), Connect);
+            await reopened.InitializeAsync();
+            Assert.True(reopened.IsConnected);
+            Assert.Equal(path, reopened.CertificateAuthorityPath);
+            Assert.Equal(path, connectedAuthority);
+            reopened.SelectedServer = reopened.Servers.Single(profile => profile.Id == local.Id);
+            Assert.Empty(reopened.CertificateAuthorityPath);
+            await reopened.ConnectCommand.ExecuteAsync(null);
+            Assert.Equal("", connectedAuthority);
+            reopened.SelectedServer = reopened.Servers.Single(profile => profile.Id == remote.Id);
+            Assert.Equal(path, reopened.CertificateAuthorityPath);
+            reopened.CertificateAuthorityPath = "";
+            await reopened.SaveServerCommand.ExecuteAsync(null);
+            Assert.All((await store.LoadAsync()).Servers, profile => Assert.Null(profile.CertificateAuthorityPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [AvaloniaFact]
     public async Task PlayRequiresSignInAndVerifiedClientAndSecretsAreCleared()
     {
@@ -78,7 +137,7 @@ public sealed class ViewModelTests
             await settings.SaveAsync(new([profile, otherProfile], profile.Id, [otherAccount, otherServerAccount]));
             var credentials = new Credentials();
             var api = new Api { FailSignOut = serverUnavailable };
-            var model = new MainViewModel(settings, credentials, new Installation(), new Launcher(), _ => api);
+            var model = new MainViewModel(settings, credentials, new Installation(), new Launcher(), (_, _) => api);
             await model.InitializeAsync();
             model.UserName = "Developer";
             model.RememberMe = true;
@@ -95,7 +154,7 @@ public sealed class ViewModelTests
             Assert.Null(model.SelectedAccount);
             Assert.Empty(model.UserName);
             Assert.Null(credentials.Value);
-            var reopened = new MainViewModel(new SettingsStore(directory), credentials, new Installation(), new Launcher(), _ => api);
+            var reopened = new MainViewModel(new SettingsStore(directory), credentials, new Installation(), new Launcher(), (_, _) => api);
             await reopened.InitializeAsync();
             Assert.False(reopened.IsSignedIn);
             Assert.Empty(reopened.UserName);
@@ -165,7 +224,7 @@ public sealed class ViewModelTests
             var api = new Api();
             var launcher = new Launcher();
             var build = new ClientBuild([], prefix.Length, Convert.ToHexString(SHA256.HashData(prefix)));
-            var model = new MainViewModel(new Settings(), new Credentials(), new Installation(), launcher, _ => api, build);
+            var model = new MainViewModel(new Settings(), new Credentials(), new Installation(), launcher, (_, _) => api, build);
             await model.InitializeAsync();
             model.UserName = "Developer";
             await model.AccountCommand.ExecuteAsync(null);
@@ -253,7 +312,7 @@ public sealed class ViewModelTests
     {
         var installation = new Installation();
         var api = new Api();
-        var model = new MainViewModel(new Settings(), new Credentials(), installation, new Launcher(), _ => api);
+        var model = new MainViewModel(new Settings(), new Credentials(), installation, new Launcher(), (_, _) => api);
         await model.InitializeAsync();
         await model.AccountCommand.ExecuteAsync(null);
         model.ClientRoot = "fixture";
@@ -305,7 +364,7 @@ public sealed class ViewModelTests
     }
 
     private static MainViewModel Create(Api api, Credentials credentials) =>
-        new(new Settings(), credentials, new Installation(), new Launcher(), _ => api);
+        new(new Settings(), credentials, new Installation(), new Launcher(), (_, _) => api);
 
     private sealed class Settings : ISettingsStore
     {
@@ -352,7 +411,14 @@ public sealed class ViewModelTests
             remove { }
         }
 
-        public Task LaunchAsync(string root, ServerReply server, SessionReply session, LaunchReply launch, CancellationToken cancellation)
+        public Task LaunchAsync(
+            string root,
+            ServerReply server,
+            SessionReply session,
+            LaunchReply launch,
+            string? certificateAuthorityPath,
+            CancellationToken cancellation
+        )
         {
             LaunchedSession = session;
             LaunchedRoot = root;

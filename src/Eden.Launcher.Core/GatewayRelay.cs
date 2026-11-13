@@ -15,14 +15,16 @@ public sealed class GatewayRelay : IGatewayRelay
     private readonly TcpListener _listener = new(IPAddress.Loopback, 0);
     private readonly CancellationTokenSource _shutdown = new();
     private readonly Uri _upstream;
+    private readonly RemoteCertificateValidationCallback? _trust;
     private readonly Task _accept;
     private readonly List<Task> _connections = [];
     public string Address => ((IPEndPoint)_listener.LocalEndpoint).ToString();
 
-    public GatewayRelay(Uri upstream)
+    public GatewayRelay(Uri upstream, string? certificateAuthorityPath = null)
     {
         LauncherApiClient.ValidateEndpoint(upstream);
         _upstream = upstream;
+        _trust = upstream.Scheme == Uri.UriSchemeHttps ? TlsTrust.ForServer(certificateAuthorityPath) : null;
         _listener.Start();
         _accept = AcceptAsync();
     }
@@ -54,7 +56,7 @@ public sealed class GatewayRelay : IGatewayRelay
                 Stream outgoing = server.GetStream();
                 if (_upstream.Scheme == "https")
                 {
-                    var tls = new SslStream(outgoing, leaveInnerStreamOpen: false, TlsTrust.FromEnvironment());
+                    var tls = new SslStream(outgoing, leaveInnerStreamOpen: false, _trust);
                     outgoing = tls;
                     await tls.AuthenticateAsClientAsync(
                         new SslClientAuthenticationOptions

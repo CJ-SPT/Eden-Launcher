@@ -154,6 +154,7 @@ public partial class MainViewModel
             }
             GroupResults.Clear();
             string address = ApiAddress;
+            string authority = CertificateAuthorityPath.Trim();
             string root = ClientRoot;
             var accounts = Accounts.ToArray();
             var members = group.AccountIds.Distinct().ToArray();
@@ -161,7 +162,7 @@ public partial class MainViewModel
             int skipped = 0;
             int failed = 0;
             bool cancelled = false;
-            using var api = _apiFactory(address);
+            using var api = _apiFactory(address, authority);
             server = await api.ServerAsync(cancellation);
             foreach (long accountId in members)
             {
@@ -189,7 +190,7 @@ public partial class MainViewModel
                     var request = await _build.CreateLaunchRequestAsync(root, server, cancellation);
                     var launch = await api.LaunchAsync(session.AccessToken, request, cancellation);
                     launch = await ClientSkillArchive.DownloadForLaunchAsync(api, root, server, session, launch, cancellation);
-                    await _launcher.LaunchAsync(root, server, session, launch, cancellation);
+                    await _launcher.LaunchAsync(root, server, session, launch, authority, cancellation);
                     RunningCount = _launcher.RunningCount;
                     launched++;
                     GroupResults.Add($"{name}: launched.");

@@ -7,6 +7,7 @@ public sealed record ServerProfile
     public string Id { get; init; } = Guid.NewGuid().ToString("N");
     public string Name { get; init; } = "Eden Local";
     public string ApiAddress { get; init; } = "http://127.0.0.1:26002";
+    public string? CertificateAuthorityPath { get; init; }
     public string ClientRoot { get; init; } = "";
     public string UserName { get; init; } = "";
 

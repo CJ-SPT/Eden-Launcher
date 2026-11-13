@@ -1,20 +1,37 @@
 using System.Net.Security;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
 namespace Eden.Launcher.Core;
 
 public static class TlsTrust
 {
-    // An explicit process-local CA supports private servers without changing Windows trust or bypassing certificate checks.
-    public static RemoteCertificateValidationCallback? FromEnvironment()
+    public static RemoteCertificateValidationCallback? ForServer(string? certificateAuthorityPath)
     {
-        string? path = Environment.GetEnvironmentVariable("EDEN_LAUNCHER_CA_FILE");
-        if (string.IsNullOrWhiteSpace(path))
+        if (!string.IsNullOrWhiteSpace(certificateAuthorityPath))
         {
-            return null;
+            return FromCertificateFile(certificateAuthorityPath);
         }
-        byte[] bytes = File.ReadAllBytes(path);
-        return (_, certificate, _, errors) => Validate(bytes, certificate, errors);
+        string? path = Environment.GetEnvironmentVariable("EDEN_LAUNCHER_CA_FILE");
+        return string.IsNullOrWhiteSpace(path) ? null : FromCertificateFile(path);
+    }
+
+    public static RemoteCertificateValidationCallback FromCertificateFile(string path)
+    {
+        try
+        {
+            byte[] bytes = File.ReadAllBytes(path);
+            using var authority = X509CertificateLoader.LoadCertificate(bytes);
+            if (authority.Extensions.OfType<X509BasicConstraintsExtension>().All(extension => !extension.CertificateAuthority))
+            {
+                throw new InvalidDataException("Choose the server's CA certificate.");
+            }
+            return (_, certificate, _, errors) => Validate(bytes, certificate, errors);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or CryptographicException)
+        {
+            throw new InvalidDataException("Could not read the server CA certificate. Check the certificate file in Settings.", error);
+        }
     }
 
     public static bool Validate(byte[] authority, X509Certificate? certificate, SslPolicyErrors errors)

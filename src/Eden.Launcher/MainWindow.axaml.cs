@@ -37,6 +37,21 @@ public sealed partial class MainWindow : Window
     private void OpenSupport(object? sender, RoutedEventArgs args) =>
         Process.Start(new ProcessStartInfo("https://github.com/CJ-SPT/Eden/issues") { UseShellExecute = true });
 
+    private async void BrowseCertificateAuthority(object? sender, RoutedEventArgs args)
+    {
+        var result = await StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions
+            {
+                Title = "Choose the server's CA certificate",
+                FileTypeFilter = [new("Certificates") { Patterns = ["*.cer", "*.crt", "*.der", "*.pem"] }, FilePickerFileTypes.All],
+            }
+        );
+        if (DataContext is MainViewModel viewModel && result.Count == 1 && result[0].TryGetLocalPath() is { } path)
+        {
+            viewModel.CertificateAuthorityPath = path;
+        }
+    }
+
     private async void BrowseClient(object? sender, RoutedEventArgs args)
     {
         if (DataContext is MainViewModel viewModel && await PickFolderAsync("Choose Eden client folder") is { } path)

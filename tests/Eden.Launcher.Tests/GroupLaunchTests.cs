@@ -30,7 +30,7 @@ public sealed class GroupLaunchTests : IDisposable
             await Store.SaveAsync(new([local, remote], local.Id, accounts, groups));
         }
         var build = new ClientBuild([], s_prefix.Length, Convert.ToHexString(SHA256.HashData(s_prefix)));
-        var model = new MainViewModel(Store, _credentials, new Installation(), _launcher, _ => _api, build);
+        var model = new MainViewModel(Store, _credentials, new Installation(), _launcher, (_, _) => _api, build);
         await model.InitializeAsync();
         return model;
     }
@@ -339,7 +339,14 @@ public sealed class GroupLaunchTests : IDisposable
 
         public bool IsRunning(string serverId, long accountId) => Running.Contains(accountId);
 
-        public Task LaunchAsync(string root, ServerReply server, SessionReply session, LaunchReply launch, CancellationToken cancellation)
+        public Task LaunchAsync(
+            string root,
+            ServerReply server,
+            SessionReply session,
+            LaunchReply launch,
+            string? certificateAuthorityPath,
+            CancellationToken cancellation
+        )
         {
             Assert.Equal("ticket-" + session.AccountId, launch.Ticket);
             if (FailLaunch.Contains(session.AccountId))

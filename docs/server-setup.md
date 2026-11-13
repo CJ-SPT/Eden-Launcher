@@ -42,7 +42,13 @@ Provide a certificate whose subject alternative names match the advertised gatew
 
 Supply a PFX password through `EDEN_CERTIFICATE_PASSWORD` if needed, then start the server with `--config C:\Eden\server.json`. Combine `--world` with `--config` to select another save. Configure the host/network to allow the three chosen ports. The launcher API address is `https://eden.example.com:26002`.
 
-Publicly trusted certificates use the operating system's normal verification. For a private certificate authority, set `EDEN_LAUNCHER_CA_FILE` to its DER-encoded CA certificate before opening the launcher. This trust applies only to that launcher process. Hostname, validity, chain and server-authentication checks still apply. Windows trust is not modified. Unencrypted remote API/gateway connections and certificate bypasses are not supported.
+For a private CA, obtain its public certificate from the server operator and keep it at a stable path. Open **Settings**, enter the HTTPS
+address with the hostname on the server certificate, then use **Browse…** next to **Private CA certificate**. Choose **Connect** to
+connect and save the profile. You can replace or clear the file path and save again to change trust for that profile.
+
+The launcher uses the CA for both the API and the game gateway. It still verifies the hostname, certificate chain, validity and server
+authentication. Profiles with a blank path use normal Windows verification. Existing setups using `EDEN_LAUNCHER_CA_FILE` can keep it
+as a process-wide fallback for profiles with a blank path.
 
 The native client requires a cleartext loopback gateway override. The launcher relays that connection to the remote gateway over certificate-validated TLS with HTTP/2 ALPN. Keep the launcher running or in its tray while clients are open. Game login continues to use the pinned client's RSA/AES exchange and challenge verification.
 

@@ -378,6 +378,17 @@
                 <TextBox Text="{Binding ApiAddress}" AutomationProperties.Name="Server address" />
               </StackPanel>
             </Grid>
+            <StackPanel Spacing="6" IsEnabled="{Binding CanWork}">
+              <TextBlock Text="Private CA certificate" Classes="label" />
+              <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <TextBox
+                  Text="{Binding CertificateAuthorityPath}"
+                  AutomationProperties.Name="Private CA certificate"
+                  PlaceholderText="Optional · path to the server's CA certificate"
+                />
+                <Button Grid.Column="1" Content="Browse…" Click="BrowseCertificateAuthority" />
+              </Grid>
+            </StackPanel>
             <StackPanel Orientation="Horizontal" Spacing="10" IsEnabled="{Binding CanWork}">
               <Button Content="Connect" Command="{Binding ConnectCommand}" Classes="primary" />
               <Button Content="Save profile" Command="{Binding SaveServerCommand}" />

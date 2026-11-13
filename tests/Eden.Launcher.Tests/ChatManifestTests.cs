@@ -73,6 +73,7 @@ public sealed class ChatManifestTests : IDisposable
                 server,
                 new(1000001, "Pilot", "unused", long.MaxValue, null),
                 reply,
+                null,
                 TestContext.Current.CancellationToken
             )
         );
@@ -166,6 +167,7 @@ public sealed class ChatManifestTests : IDisposable
                 },
                 new(1, "Pilot", "unused", 0, null),
                 reply,
+                null,
                 TestContext.Current.CancellationToken
             )
         );

@@ -7,7 +7,14 @@ public interface IClientLauncher
     int RunningCount { get; }
     event Action? Changed;
     bool IsRunning(string serverId, long accountId);
-    Task LaunchAsync(string root, ServerReply server, SessionReply session, LaunchReply launch, CancellationToken cancellation);
+    Task LaunchAsync(
+        string root,
+        ServerReply server,
+        SessionReply session,
+        LaunchReply launch,
+        string? certificateAuthorityPath,
+        CancellationToken cancellation
+    );
 }
 
 public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
@@ -31,7 +38,14 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
         Changed?.Invoke();
     }
 
-    public async Task LaunchAsync(string root, ServerReply server, SessionReply session, LaunchReply launch, CancellationToken cancellation)
+    public async Task LaunchAsync(
+        string root,
+        ServerReply server,
+        SessionReply session,
+        LaunchReply launch,
+        string? certificateAuthorityPath,
+        CancellationToken cancellation
+    )
     {
         root = ClientInstallation.Canonical(root);
         await _gate.WaitAsync(cancellation);
@@ -104,7 +118,7 @@ public sealed class ClientProcesses(ClientBuild build) : IClientLauncher
                     ClientSkillArchive.CompleteUpdate(root);
                     throw;
                 }
-                relay = new GatewayRelay(new Uri(server.GatewayAddress));
+                relay = new GatewayRelay(new Uri(server.GatewayAddress), certificateAuthorityPath);
                 var process =
                     Process.Start(CreateStartInfo(root, server, session, launch.Ticket, relay.Address))
                     ?? throw new IOException("The game client could not start.");

@@ -13,7 +13,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ICredentialStore _credentials;
     private readonly IClientInstallation _installation;
     private readonly IClientLauncher _launcher;
-    private readonly Func<string, ILauncherApiClient> _apiFactory;
+    private readonly Func<string, string?, ILauncherApiClient> _apiFactory;
     private readonly ClientBuild _build;
     private SessionReply? _session;
     private ServerReply? _server;
@@ -48,6 +48,9 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private string _apiAddress = "http://127.0.0.1:26002";
+
+    [ObservableProperty]
+    private string _certificateAuthorityPath = "";
 
     [ObservableProperty]
     private string _clientRoot = "";
@@ -125,7 +128,7 @@ public partial class MainViewModel : ObservableObject
         ICredentialStore credentials,
         IClientInstallation installation,
         IClientLauncher launcher,
-        Func<string, ILauncherApiClient>? apiFactory = null,
+        Func<string, string?, ILauncherApiClient>? apiFactory = null,
         ClientBuild? clientBuild = null
     )
     {
@@ -133,7 +136,7 @@ public partial class MainViewModel : ObservableObject
         _credentials = credentials;
         _installation = installation;
         _launcher = launcher;
-        _apiFactory = apiFactory ?? (address => new LauncherApiClient(address));
+        _apiFactory = apiFactory ?? ((address, authority) => new LauncherApiClient(address, certificateAuthorityPath: authority));
         _build = clientBuild ?? new ClientBuild();
         _launcher.Changed += () => Dispatcher.UIThread.Post(() => RunningCount = _launcher.RunningCount);
     }
@@ -166,7 +169,7 @@ public partial class MainViewModel : ObservableObject
             string? refresh = _credentials.Read(ApiAddress, UserName);
             if (refresh is not null)
             {
-                using var api = _apiFactory(ApiAddress);
+                using var api = _apiFactory(ApiAddress, CertificateAuthorityPath.Trim());
                 try
                 {
                     var session = await api.RefreshAsync(refresh, cancellation);
@@ -192,6 +195,7 @@ public partial class MainViewModel : ObservableObject
         _loading = true;
         ServerName = value.Name;
         ApiAddress = value.ApiAddress;
+        CertificateAuthorityPath = value.CertificateAuthorityPath ?? "";
         ClientRoot = value.ClientRoot;
         UserName = value.UserName;
         _loading = false;
@@ -211,6 +215,14 @@ public partial class MainViewModel : ObservableObject
     }
 
     partial void OnApiAddressChanged(string value)
+    {
+        if (!_loading)
+        {
+            ResetConnection();
+        }
+    }
+
+    partial void OnCertificateAuthorityPathChanged(string value)
     {
         if (!_loading)
         {
@@ -297,7 +309,7 @@ public partial class MainViewModel : ObservableObject
             }
             if (_credentials.Read(ApiAddress, account.UserName) is { } refresh)
             {
-                using var api = _apiFactory(ApiAddress);
+                using var api = _apiFactory(ApiAddress, CertificateAuthorityPath.Trim());
                 try
                 {
                     var session = await api.RefreshAsync(refresh, cancellation);
@@ -388,7 +400,7 @@ public partial class MainViewModel : ObservableObject
 
     private async Task ConnectCoreAsync(CancellationToken cancellation)
     {
-        using var api = _apiFactory(ApiAddress);
+        using var api = _apiFactory(ApiAddress, CertificateAuthorityPath.Trim());
         _server = await api.ServerAsync(cancellation);
         IsConnected = true;
         ConnectionStatus = "CONNECTED · " + _server.Name;
@@ -401,6 +413,10 @@ public partial class MainViewModel : ObservableObject
         RunAsync(async _ =>
         {
             LauncherApiClient.ParseEndpoint(ApiAddress);
+            if (!string.IsNullOrWhiteSpace(CertificateAuthorityPath))
+            {
+                TlsTrust.FromCertificateFile(CertificateAuthorityPath.Trim());
+            }
             await SaveCoreAsync();
             Status = "Server profile saved.";
         });
@@ -427,6 +443,7 @@ public partial class MainViewModel : ObservableObject
         {
             Name = ServerName.Trim(),
             ApiAddress = ApiAddress.Trim().TrimEnd('/'),
+            CertificateAuthorityPath = string.IsNullOrWhiteSpace(CertificateAuthorityPath) ? null : CertificateAuthorityPath.Trim(),
             ClientRoot = ClientRoot.Trim(),
             UserName = UserName.Trim(),
         };
@@ -452,7 +469,7 @@ public partial class MainViewModel : ObservableObject
             {
                 await ConnectCoreAsync(cancellation);
             }
-            using var api = _apiFactory(ApiAddress);
+            using var api = _apiFactory(ApiAddress, CertificateAuthorityPath.Trim());
             if (CreateAccount)
             {
                 if (Password != ConfirmPassword)
@@ -511,7 +528,7 @@ public partial class MainViewModel : ObservableObject
             }
             try
             {
-                using var api = _apiFactory(address);
+                using var api = _apiFactory(address, CertificateAuthorityPath.Trim());
                 await api.SignOutAsync(session.AccessToken, cancellation);
             }
             finally
@@ -573,9 +590,10 @@ public partial class MainViewModel : ObservableObject
         RunAsync(async cancellation =>
         {
             string address = ApiAddress;
+            string authority = CertificateAuthorityPath.Trim();
             string root = ClientRoot;
             var session = _session ?? throw new InvalidOperationException("Sign in before launching the game.");
-            using var api = _apiFactory(address);
+            using var api = _apiFactory(address, authority);
             if (session.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() + SessionRefreshLeadSeconds)
             {
                 string refresh =
@@ -593,7 +611,7 @@ public partial class MainViewModel : ObservableObject
                 Status = "Checking server skill updates…";
             }
             launch = await ClientSkillArchive.DownloadForLaunchAsync(api, root, server, session, launch, cancellation);
-            await _launcher.LaunchAsync(root, server, session, launch, cancellation);
+            await _launcher.LaunchAsync(root, server, session, launch, authority, cancellation);
             RunningCount = _launcher.RunningCount;
             Status = "Game launched. Fly safe.";
         });
