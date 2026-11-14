@@ -74,7 +74,7 @@ public partial class MainViewModel : ObservableObject
     private bool _developerAccount;
 
     [ObservableProperty]
-    private bool _rememberMe;
+    private bool _rememberMe = true;
 
     [ObservableProperty]
     private bool _createAccount;
@@ -161,28 +161,7 @@ public partial class MainViewModel : ObservableObject
             {
                 _loading = false;
             }
-            await ConnectCoreAsync(cancellation);
-            if (!string.IsNullOrWhiteSpace(ClientRoot))
-            {
-                await ValidateClientCoreAsync(cancellation);
-            }
-            string? refresh = _credentials.Read(ApiAddress, UserName);
-            if (refresh is not null)
-            {
-                using var api = _apiFactory(ApiAddress, CertificateAuthorityPath.Trim());
-                try
-                {
-                    var session = await api.RefreshAsync(refresh, cancellation);
-                    RememberMe = true;
-                    await AcceptSessionAsync(session);
-                    Status = "Welcome back. Your account is ready.";
-                }
-                catch (LauncherApiException error) when (error.Code == "unauthorized")
-                {
-                    _credentials.Write(ApiAddress, UserName, null);
-                    Status = "Your remembered sign-in expired. Sign in again.";
-                }
-            }
+            await ConnectAndRestoreAsync(cancellation);
         });
     }
 
@@ -310,28 +289,21 @@ public partial class MainViewModel : ObservableObject
                 await AcceptSessionAsync(cached);
                 return;
             }
-            if (_credentials.Read(ApiAddress, account.UserName) is { } refresh)
+            using var api = _apiFactory(ApiAddress, CertificateAuthorityPath.Trim());
+            try
             {
-                using var api = _apiFactory(ApiAddress, CertificateAuthorityPath.Trim());
-                try
+                var session = await RefreshRememberedSessionAsync(api, ApiAddress, account.UserName, account.AccountId, cancellation);
+                if (session is not null)
                 {
-                    var session = await api.RefreshAsync(refresh, cancellation);
-                    if (session.AccountId != account.AccountId)
-                    {
-                        throw new InvalidDataException("Remembered sign-in belongs to another account. Sign in again.");
-                    }
                     await AcceptSessionAsync(session);
                     return;
                 }
-                catch (LauncherApiException error) when (error.Code == "unauthorized")
-                {
-                    _credentials.Write(ApiAddress, account.UserName, null);
-                    _sessions.Remove(key);
-                    Status = "Your remembered sign-in expired. Sign in again.";
-                }
             }
-            ShowAccountDialog = true;
-            AccountStatus = "Sign in to " + account.UserName;
+            catch (LauncherApiException error) when (error.Code == "unauthorized")
+            {
+                Status = "Your remembered sign-in expired. Sign in again.";
+            }
+            ShowSignIn(account.UserName);
         });
 
     [RelayCommand]
@@ -399,7 +371,17 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task ConnectAsync() => RunAsync(ConnectCoreAsync);
+    private Task ConnectAsync() => RunAsync(ConnectAndRestoreAsync);
+
+    private async Task ConnectAndRestoreAsync(CancellationToken cancellation)
+    {
+        await ConnectCoreAsync(cancellation);
+        if (!ClientReady && !string.IsNullOrWhiteSpace(ClientRoot))
+        {
+            await ValidateClientCoreAsync(cancellation);
+        }
+        await RestoreRememberedSessionAsync(cancellation);
+    }
 
     private async Task ConnectCoreAsync(CancellationToken cancellation)
     {
@@ -413,7 +395,7 @@ public partial class MainViewModel : ObservableObject
         _server = server;
         IsConnected = true;
         ConnectionStatus = "CONNECTED · " + server.Name;
-        Status = "Connected. Sign in or create an account.";
+        Status = IsSignedIn ? "Connected. Your account is ready." : "Connected. Sign in or create an account.";
     }
 
     [RelayCommand]
@@ -490,6 +472,7 @@ public partial class MainViewModel : ObservableObject
                 await api.RegisterAsync(new(UserName, Password, DeveloperAccount, DeveloperCode), cancellation);
             }
             var session = await api.SignInAsync(new(UserName, Password, RememberMe), cancellation);
+            SaveSession(ApiAddress, session);
             await AcceptSessionAsync(session);
             Status = "Signed in. Select a prepared client and press Play.";
         });
@@ -498,9 +481,8 @@ public partial class MainViewModel : ObservableObject
     {
         _session = session;
         _sessionAddress = ApiAddress;
-        _sessions[ApiAddress + "\n" + session.AccountId] = session;
         UserName = session.UserName;
-        _credentials.Write(ApiAddress, UserName, session.RefreshToken);
+        RememberMe = session.RefreshToken is not null;
         IsSignedIn = true;
         AccountStatus = session.Developer ? session.UserName + " · Developer" : session.UserName;
         Password = "";
@@ -604,25 +586,28 @@ public partial class MainViewModel : ObservableObject
             string authority = CertificateAuthorityPath.Trim();
             string root = ClientRoot;
             var session = _session ?? throw new InvalidOperationException("Sign in before launching the game.");
+            var account = SelectedAccount ?? throw new InvalidOperationException("Choose an account before launching the game.");
             using var api = _apiFactory(address, authority);
-            if (session.ExpiresAt <= DateTimeOffset.UtcNow.ToUnixTimeSeconds() + SessionRefreshLeadSeconds)
-            {
-                string refresh =
-                    _credentials.Read(address, session.UserName)
-                    ?? throw new InvalidOperationException("Please sign out and sign in again.");
-                session = await api.RefreshAsync(refresh, cancellation);
-                await AcceptSessionAsync(session);
-            }
             var server = await api.ServerAsync(cancellation);
             _server = server;
             var request = await _build.CreateLaunchRequestAsync(root, server, cancellation);
-            var launch = await api.LaunchAsync(session.AccessToken, request, cancellation);
+            var result = await RequestLaunchAsync(api, address, account, session, request, cancellation);
+            if (result is null)
+            {
+                if (ApiAddress == address && SelectedAccount == account)
+                {
+                    ShowSignIn(account.UserName);
+                    Status = "Your sign-in expired. Sign in again.";
+                }
+                return;
+            }
+            var (current, launch) = result.Value;
             if (server.ClientPackage is not null)
             {
                 Status = "Checking server skill updates…";
             }
-            launch = await ClientSkillArchive.DownloadForLaunchAsync(api, root, server, session, launch, cancellation);
-            await _launcher.LaunchAsync(root, server, session, launch, authority, cancellation);
+            launch = await ClientSkillArchive.DownloadForLaunchAsync(api, root, server, current, launch, cancellation);
+            await _launcher.LaunchAsync(root, server, current, launch, authority, cancellation);
             RunningCount = _launcher.RunningCount;
             Status = "Game launched. Fly safe.";
         });

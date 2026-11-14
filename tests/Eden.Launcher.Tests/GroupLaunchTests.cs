@@ -119,6 +119,7 @@ public sealed class GroupLaunchTests : IDisposable
         var model = await CreateAsync(members: [1, 2, 2, 3]);
         model.UserName = "Pilot1";
         model.Password = "secret";
+        model.RememberMe = false;
         await model.AccountCommand.ExecuteAsync(null);
         _credentials.Write(model.ApiAddress, "Pilot2", "refresh-2");
         _launcher.Running.Add(3);
@@ -154,7 +155,7 @@ public sealed class GroupLaunchTests : IDisposable
         await model.LaunchGroupCommand.ExecuteAsync(null);
         Assert.Equal(new long[] { 3 }, _launcher.Launched);
         Assert.True(model.IsError);
-        Assert.Contains(model.GroupResults, result => result.Contains("Pilot1: Sign in"));
+        Assert.Contains(model.GroupResults, result => result.Contains("Pilot1: Remembered sign-in expired or missing"));
         Assert.Contains(model.GroupResults, result => result.Contains("Pilot2: Could not reach"));
         Assert.Contains(model.GroupResults, result => result.Contains("Account 99: Account is no longer saved"));
         Assert.Equal("1 launched · 0 already running · 3 need attention", model.GroupStatus);
@@ -204,6 +205,26 @@ public sealed class GroupLaunchTests : IDisposable
         Assert.Equal(new long[] { 1 }, _api.Refreshed);
         Assert.Equal(new long[] { 1 }, _launcher.Launched);
         Assert.False(model.IsError);
+    }
+
+    [AvaloniaFact]
+    public async Task RejectedGroupAccessRenewsOnceAndUpdatesTheSelectedSession()
+    {
+        var model = await CreateAsync(members: [1]);
+        model.UserName = "Pilot1";
+        model.Password = "secret";
+        await model.AccountCommand.ExecuteAsync(null);
+        _api.RejectNextAccess.Add(1);
+
+        await model.LaunchGroupCommand.ExecuteAsync(null);
+
+        Assert.Equal(new long[] { 1, 1 }, _api.Tickets);
+        Assert.Equal(1, Assert.Single(_api.Refreshed));
+        Assert.Equal(1, Assert.Single(_launcher.Launched));
+        Assert.True(model.IsSignedIn);
+        Assert.False(model.IsError);
+        await model.SignOutCommand.ExecuteAsync(null);
+        Assert.Equal("access-1-renewed", _api.SignedOutAccess);
     }
 
     [AvaloniaFact]
@@ -367,9 +388,11 @@ public sealed class GroupLaunchTests : IDisposable
         public List<long> Tickets { get; } = [];
         public HashSet<long> FailTickets { get; } = [];
         public HashSet<long> Unauthorized { get; } = [];
+        public HashSet<long> RejectNextAccess { get; } = [];
         public HashSet<long> TimeoutTickets { get; } = [];
         public Dictionary<long, Exception> ReplyErrors { get; } = [];
         public long SignInExpiresAt { get; set; } = long.MaxValue;
+        public string? SignedOutAccess { get; private set; }
         public Action<CancellationToken>? BeforeTicket { get; set; }
 
         public Task<ServerReply> ServerAsync(CancellationToken cancellation = default) =>
@@ -389,13 +412,17 @@ public sealed class GroupLaunchTests : IDisposable
             {
                 throw new LauncherApiException("unauthorized", "Sign in again.");
             }
-            return Task.FromResult(Session(accountId, true));
+            return Task.FromResult(Session(accountId, true) with { AccessToken = $"access-{accountId}-renewed" });
         }
 
         private static SessionReply Session(long id, bool remember) =>
             new(id, "Pilot" + id, "access-" + id, long.MaxValue, remember ? "refresh-" + id + "-rotated" : null);
 
-        public Task SignOutAsync(string accessToken, CancellationToken cancellation = default) => Task.CompletedTask;
+        public Task SignOutAsync(string accessToken, CancellationToken cancellation = default)
+        {
+            SignedOutAccess = accessToken;
+            return Task.CompletedTask;
+        }
 
         public Task<LaunchReply> LaunchAsync(string accessToken, LaunchRequest request, CancellationToken cancellation = default)
         {
@@ -404,6 +431,10 @@ public sealed class GroupLaunchTests : IDisposable
             Assert.Equal(ClientBuild.Number, request.Build);
             Assert.Equal(Convert.ToBase64String(s_prefix), request.ManifestPrefix);
             BeforeTicket?.Invoke(cancellation);
+            if (RejectNextAccess.Remove(id))
+            {
+                throw new LauncherApiException("unauthorized", "Sign in again.");
+            }
             if (ReplyErrors.TryGetValue(id, out var error))
             {
                 throw error;

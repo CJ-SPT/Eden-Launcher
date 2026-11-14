@@ -201,6 +201,81 @@ public sealed class ViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task ConnectRestoresRememberedSignInAfterStartingDuringAnOutage()
+    {
+        var api = new Api { Offline = true };
+        var credentials = new Credentials { Value = "old refresh" };
+        var model = Create(api, credentials);
+        await model.InitializeAsync();
+        model.ClientRoot = "prepared-client";
+        Assert.False(model.IsSignedIn);
+        Assert.Equal("old refresh", credentials.Value);
+        Assert.Equal(0, api.RefreshCalls);
+
+        api.Offline = false;
+        await model.ConnectCommand.ExecuteAsync(null);
+
+        Assert.True(model.CanPlay);
+        Assert.False(model.ShowAccountDialog);
+        Assert.Equal("refresh", credentials.Value);
+        Assert.Equal(1, api.RefreshCalls);
+        await model.ConnectCommand.ExecuteAsync(null);
+        Assert.Equal(1, api.RefreshCalls);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PlayRenewsRejectedAccessOrOpensSignInIfRefreshExpired(bool rejectRefresh)
+    {
+        string root = Directory.CreateTempSubdirectory("eden-launch-reauth-").FullName;
+        try
+        {
+            Directory.CreateDirectory(Path.Combine(root, "tq"));
+            byte[] prefix = [1, 2, 3, 4];
+            await File.WriteAllBytesAsync(Path.Combine(root, "tq", "manifest.dat"), prefix, TestContext.Current.CancellationToken);
+            var api = new Api();
+            var credentials = new Credentials();
+            var launcher = new Launcher();
+            var build = new ClientBuild([], prefix.Length, Convert.ToHexString(SHA256.HashData(prefix)));
+            var model = new MainViewModel(new Settings(), credentials, new Installation(), launcher, (_, _) => api, build);
+            await model.InitializeAsync();
+            model.UserName = "Developer";
+            model.Password = "test password";
+            await model.AccountCommand.ExecuteAsync(null);
+            Assert.True(model.RememberMe);
+            Assert.Equal("refresh", credentials.Value);
+            model.ClientRoot = root;
+            await model.UseClientCommand.ExecuteAsync(null);
+            api.RejectNextAccess = true;
+            api.RejectRefresh = rejectRefresh;
+
+            await model.PlayCommand.ExecuteAsync(null);
+
+            Assert.Equal(1, api.RefreshCalls);
+            Assert.Equal(!rejectRefresh, model.IsSignedIn);
+            Assert.Equal(rejectRefresh, model.ShowAccountDialog);
+            Assert.Equal("Developer", model.UserName);
+            if (rejectRefresh)
+            {
+                Assert.Equal(new[] { "access" }, api.LaunchAttempts);
+                Assert.Null(launcher.LaunchedSession);
+                Assert.Null(credentials.Value);
+            }
+            else
+            {
+                Assert.Equal(new[] { "access", "access-renewed" }, api.LaunchAttempts);
+                Assert.Equal("access-renewed", launcher.LaunchedSession!.AccessToken);
+                Assert.Equal("refresh", credentials.Value);
+            }
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [AvaloniaFact]
     public async Task EditingServerAddressDropsThePreviousAccountSession()
     {
         var model = Create(new Api(), new Credentials { Value = "refresh" });
@@ -438,9 +513,11 @@ public sealed class ViewModelTests
         public Task<ServerReply>? PendingServer { get; set; }
         public Exception? ServerError { get; set; }
         public bool RejectRefresh { get; set; }
+        public bool RejectNextAccess { get; set; }
         public long SessionExpiry { get; set; } = long.MaxValue;
         public int RefreshCalls { get; private set; }
         public string? LaunchedAccess { get; private set; }
+        public List<string> LaunchAttempts { get; } = [];
         public static ServerReply Server => new("test", "Test", 1, ClientBuild.Number, "localhost:26000", "http://localhost:26001");
 
         public Task<ServerReply> ServerAsync(CancellationToken cancellation = default) =>
@@ -464,7 +541,7 @@ public sealed class ViewModelTests
             RefreshCalls++;
             return RejectRefresh
                 ? Task.FromException<SessionReply>(new LauncherApiException("unauthorized", "expired"))
-                : SignInAsync(new("Developer", "", true), cancellation);
+                : Task.FromResult(new SessionReply(1000003, "Developer", "access-renewed", SessionExpiry, "refresh", true));
         }
 
         public Task SignOutAsync(string accessToken, CancellationToken cancellation = default)
@@ -475,6 +552,12 @@ public sealed class ViewModelTests
 
         public Task<LaunchReply> LaunchAsync(string accessToken, LaunchRequest request, CancellationToken cancellation = default)
         {
+            LaunchAttempts.Add(accessToken);
+            if (RejectNextAccess)
+            {
+                RejectNextAccess = false;
+                return Task.FromException<LaunchReply>(new LauncherApiException("unauthorized", "Sign in again."));
+            }
             LaunchedAccess = accessToken;
             return Task.FromResult(new LaunchReply("ticket", long.MaxValue, "manifest"));
         }

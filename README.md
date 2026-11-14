@@ -18,10 +18,15 @@ Extract the Windows x64 release ZIP and open `Eden.Desktop.exe`. No separate .NE
    remote server with a private CA, select its CA certificate with **Browse…**, or choose **Download CA** and verify the fingerprint
    provided by the server operator.
 2. Select a prepared Eden client containing `tq` and `ResFiles`, then choose **Use this client**. Alternatively, expand **Prepare a new Eden client**, choose the pinned source and an empty destination, and prepare the copy. Other EVE builds are rejected.
-3. Choose **Add account**, sign in or create an account with a 6–128 character password, and optionally select **Remember me**. Developer accounts require the server operator's invitation code.
+3. Choose **Add account** and sign in or create an account with a 6–128 character password. **Remember me on this computer** is
+   selected by default. Clear it for a temporary sign-in on a shared computer. Developer accounts require the server operator's invitation code.
 4. Choose the account card and press **Play**. Create characters in the game. Closing the launcher window while games run keeps their gateway connections alive in the system tray. Exit after closing the games.
 
 The server runs separately. See [server setup](docs/server-setup.md) and [acceptance results](docs/acceptance.md).
+
+Remembered sign-ins work across server restarts that preserve the world save. If you opened the launcher while the server was
+offline, choose **Connect** when it returns. **Play** and **Launch group** can renew a rejected access token using the remembered
+sign-in. If your saved sign-in has expired or you changed the server address, sign in again to save a new one.
 
 ## Launch groups
 

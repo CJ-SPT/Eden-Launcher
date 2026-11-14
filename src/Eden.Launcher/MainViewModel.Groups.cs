@@ -186,9 +186,11 @@ public partial class MainViewModel
                     {
                         throw new InvalidOperationException("Account is no longer saved. Edit this group.");
                     }
-                    var session = await GetGroupSessionAsync(api, address, account, cancellation);
+                    _sessions.TryGetValue(address + "\n" + account.AccountId, out var cached);
                     var request = await _build.CreateLaunchRequestAsync(root, server, cancellation);
-                    var launch = await api.LaunchAsync(session.AccessToken, request, cancellation);
+                    var result = await RequestLaunchAsync(api, address, account, cached, request, cancellation);
+                    var (session, launch) =
+                        result ?? throw new InvalidOperationException("Remembered sign-in expired or missing. Sign in to this account.");
                     launch = await ClientSkillArchive.DownloadForLaunchAsync(api, root, server, session, launch, cancellation);
                     await _launcher.LaunchAsync(root, server, session, launch, authority, cancellation);
                     RunningCount = _launcher.RunningCount;
@@ -220,40 +222,4 @@ public partial class MainViewModel
             }
             Status = GroupStatus;
         });
-
-    private async Task<SessionReply> GetGroupSessionAsync(
-        ILauncherApiClient api,
-        string address,
-        SavedAccount account,
-        CancellationToken cancellation
-    )
-    {
-        string key = address + "\n" + account.AccountId;
-        if (
-            _sessions.TryGetValue(key, out var session)
-            && session.ExpiresAt > DateTimeOffset.UtcNow.ToUnixTimeSeconds() + SessionRefreshLeadSeconds
-        )
-        {
-            return session;
-        }
-        string refresh =
-            _credentials.Read(address, account.UserName)
-            ?? throw new InvalidOperationException("Sign in to this account first. Enable Remember me to launch after a restart.");
-        try
-        {
-            session = await api.RefreshAsync(refresh, cancellation);
-        }
-        catch (LauncherApiException error) when (error.Code == "unauthorized")
-        {
-            _credentials.Write(address, account.UserName, null);
-            throw new InvalidOperationException("Remembered sign-in expired. Sign in to this account again.");
-        }
-        if (session.AccountId != account.AccountId)
-        {
-            throw new InvalidDataException("Remembered sign-in belongs to another account. Sign in again.");
-        }
-        _credentials.Write(address, account.UserName, session.RefreshToken);
-        _sessions[key] = session;
-        return session;
-    }
 }
