@@ -196,14 +196,13 @@
               </StackPanel>
             </Border>
             <Button
-              Content="Sign out"
+              Content="{Binding SignOutLabel}"
               Command="{Binding SignOutCommand}"
-              IsVisible="{Binding IsSignedIn}"
+              IsVisible="{Binding HasSelectedAccount}"
               Classes="nav compact"
               Foreground="#A6AFB6"
               HorizontalAlignment="Right"
               IsEnabled="{Binding CanWork}"
-              ToolTip.Tip="Sign out of the selected account"
               Margin="0,-8,0,0"
             />
             <Border Height="1" Background="#303A3F" Margin="0,2,0,0" />

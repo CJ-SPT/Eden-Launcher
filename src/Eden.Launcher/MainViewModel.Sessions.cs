@@ -32,6 +32,7 @@ public partial class MainViewModel
 
     private void ShowSignIn(string name)
     {
+        _accountBeforeAdd = null;
         _session = null;
         _sessionAddress = null;
         IsSignedIn = false;

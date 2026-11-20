@@ -32,7 +32,14 @@ public sealed class WindowsCredentialStore(string directory) : ICredentialStore
         string path = KeyPath(serverAddress, userName);
         if (refreshToken is null)
         {
-            File.Delete(path);
+            try
+            {
+                File.Delete(path);
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // A profile that has never remembered a sign-in may have no credential directory.
+            }
             return;
         }
         if (!OperatingSystem.IsWindows())

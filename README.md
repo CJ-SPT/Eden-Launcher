@@ -28,6 +28,9 @@ Remembered sign-ins work across server restarts that preserve the world save. If
 offline, choose **Connect** when it returns. **Play** and **Launch group** can renew a rejected access token using the remembered
 sign-in. If your saved sign-in has expired or you changed the server address, sign in again to save a new one.
 
+Select an account card and choose **Sign out** to remove it and clear its remembered sign-in on this computer. If the account
+requires sign-in, close the sign-in form and choose **Remove account**. You can remove the account while the server is offline.
+
 ## Launch groups
 
 Servers select mod sets authored with Eden Modding SDK. Play and launch groups check the required set and install its

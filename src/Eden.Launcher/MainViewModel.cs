@@ -24,6 +24,7 @@ public partial class MainViewModel : ObservableObject
     private readonly List<SavedAccount> _savedAccounts = [];
     private readonly Dictionary<string, SessionReply> _sessions = [];
     private bool _selectingAccount;
+    private SavedAccount? _accountBeforeAdd;
 
     public ObservableCollection<ServerProfile> Servers { get; } = [];
     public ObservableCollection<SavedAccount> Accounts { get; } = [];
@@ -37,6 +38,8 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _showAccountDialog;
     public bool HasAccounts => Accounts.Count > 0;
+    public bool HasSelectedAccount => SelectedAccount is not null;
+    public string SignOutLabel => IsSignedIn ? "Sign out" : "Remove account";
     public string SelectedAccountName => IsSignedIn ? UserName : "Your universe awaits";
     public string ReadyStatus => ClientReady ? "Ready to launch" : "Client setup required";
 
@@ -239,6 +242,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowConfirmation));
         OnPropertyChanged(nameof(ShowDeveloperCode));
         OnPropertyChanged(nameof(SelectedAccountName));
+        OnPropertyChanged(nameof(SignOutLabel));
         RefreshPlay();
     }
 
@@ -262,6 +266,7 @@ public partial class MainViewModel : ObservableObject
 
     partial void OnSelectedAccountChanged(SavedAccount? value)
     {
+        OnPropertyChanged(nameof(HasSelectedAccount));
         if (value is not null && !_selectingAccount)
         {
             _ = SelectAccountAsync(value);
@@ -319,6 +324,7 @@ public partial class MainViewModel : ObservableObject
         {
             return;
         }
+        _accountBeforeAdd = IsSignedIn ? SelectedAccount : null;
         _session = null;
         IsSignedIn = false;
         UserName = "";
@@ -330,7 +336,9 @@ public partial class MainViewModel : ObservableObject
     private void CloseAccount()
     {
         ShowAccountDialog = false;
-        if (!IsSignedIn && SelectedAccount is { } account)
+        var account = _accountBeforeAdd;
+        _accountBeforeAdd = null;
+        if (!IsSignedIn && account is not null && SelectedAccount == account)
         {
             _ = SelectAccountAsync(account);
         }
@@ -438,10 +446,15 @@ public partial class MainViewModel : ObservableObject
             ClientRoot = ClientRoot.Trim(),
             UserName = UserName.Trim(),
         };
-        int index = Servers.IndexOf(SelectedServer);
+        await SaveSettingsAsync(profile, _savedAccounts.ToArray());
+    }
+
+    private async Task SaveSettingsAsync(ServerProfile profile, IReadOnlyList<SavedAccount> accounts)
+    {
+        int index = Servers.IndexOf(SelectedServer!);
         var profiles = Servers.ToArray();
         profiles[index] = profile;
-        await _settings.SaveAsync(new(profiles, profile.Id, _savedAccounts.ToArray(), _savedGroups.ToArray()));
+        await _settings.SaveAsync(new(profiles, profile.Id, accounts, _savedGroups.ToArray()));
         _updatingProfile = true;
         try
         {
@@ -506,6 +519,7 @@ public partial class MainViewModel : ObservableObject
         {
             _selectingAccount = false;
         }
+        _accountBeforeAdd = null;
         ShowAccountDialog = false;
         OnPropertyChanged(nameof(HasAccounts));
         await SaveCoreAsync();
@@ -515,35 +529,54 @@ public partial class MainViewModel : ObservableObject
     private Task SignOutAsync() =>
         RunAsync(async cancellation =>
         {
-            if (_session is not { } session || _sessionAddress is not { } address || SelectedServer is not { } profile)
+            if (SelectedAccount is not { } account || SelectedServer is not { } profile || account.ServerProfileId != profile.Id)
+            {
+                return;
+            }
+            var session = _session?.AccountId == account.AccountId ? _session : null;
+            string address = session is null ? profile.ApiAddress : _sessionAddress!;
+            string key = address + "\n" + account.AccountId;
+            session ??= _sessions.GetValueOrDefault(key);
+            var remaining = _savedAccounts
+                .Where(saved => saved.ServerProfileId != profile.Id || saved.AccountId != account.AccountId)
+                .ToArray();
+            if (string.Equals(profile.UserName, account.UserName, StringComparison.OrdinalIgnoreCase))
+            {
+                profile = profile with { UserName = "" };
+            }
+
+            _credentials.Write(address, account.UserName, null);
+            await SaveSettingsAsync(profile, remaining);
+
+            _savedAccounts.Clear();
+            _savedAccounts.AddRange(remaining);
+            _sessions.Remove(key);
+            _session = null;
+            _sessionAddress = null;
+            IsSignedIn = false;
+            SelectedAccount = null;
+            UserName = profile.UserName;
+            Password = "";
+            ConfirmPassword = "";
+            DeveloperCode = "";
+            AccountStatus = "Sign in to your Eden account";
+            Accounts.Remove(account);
+            OnPropertyChanged(nameof(HasAccounts));
+            Status = "Account removed from this launcher.";
+            if (session is null)
             {
                 return;
             }
             try
             {
-                using var api = _apiFactory(address, CertificateAuthorityPath.Trim());
+                using var api = _apiFactory(address, profile.CertificateAuthorityPath);
                 await api.SignOutAsync(session.AccessToken, cancellation);
             }
-            finally
+            catch (Exception error) when (error is OperationCanceledException || IsOperationError(error))
             {
-                _sessions.Remove(address + "\n" + session.AccountId);
-                _session = null;
-                _sessionAddress = null;
-                IsSignedIn = false;
-                SelectedAccount = null;
-                UserName = "";
-                AccountStatus = "Sign in to your Eden account";
-                _savedAccounts.RemoveAll(saved => saved.ServerProfileId == profile.Id && saved.AccountId == session.AccountId);
-                var account = Accounts.FirstOrDefault(saved => saved.ServerProfileId == profile.Id && saved.AccountId == session.AccountId);
-                if (account is not null)
-                {
-                    Accounts.Remove(account);
-                }
-                OnPropertyChanged(nameof(HasAccounts));
-                _credentials.Write(address, session.UserName, null);
-                await SaveCoreAsync();
+                IsError = true;
+                Status = "Account removed from this launcher. Server sign-out could not be confirmed.";
             }
-            Status = "Signed out. Your running game clients will remain open.";
         });
 
     [RelayCommand]
@@ -658,6 +691,7 @@ public partial class MainViewModel : ObservableObject
     private static bool IsOperationError(Exception error) =>
         error
             is IOException
+                or UnauthorizedAccessException
                 or InvalidDataException
                 or InvalidOperationException
                 or ArgumentException

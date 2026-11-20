@@ -2,6 +2,24 @@
 
 Automated results, launcher UI checks and native-client observations are recorded separately. The historical native-client checks below were stopped by the user with Escape before final gameplay acceptance.
 
+## Remove accounts without an active session
+
+The selected account can be removed when the launcher starts offline or the saved account requires sign-in. Close the sign-in
+form to access **Remove account**. Sign-out clears the remembered credential and saves the local removal before asking the server
+to revoke the session. If that request fails, the launcher reports that server sign-out could not be confirmed.
+
+### Automated validation
+
+Release build passed with zero warnings and errors. The exact filters for `SavedAccountCanBeRemovedWithoutAnActiveSession` and
+`SignOutRemovesOnlyTheCurrentAccountFromSavedSettings` passed four cases in 593 ms. The broader
+`FullyQualifiedName~ViewModelTests|FullyQualifiedName~GroupLaunchTests` filter passed 36 cases in 1 second. The tests check the
+headless Avalonia button and account list, persisted settings after reopening, missing credential directories, preservation of
+other accounts, and local removal before both successful and failed server requests.
+
+### Live acceptance
+
+Not performed; agent client testing is disabled.
+
 ## Remove signed-out accounts from the launcher
 
 Sign out removes the selected account from the sidebar and saved settings for its server profile. The launcher clears the remembered credentials and saves the removal even if the server cannot be reached.

@@ -144,6 +144,14 @@ public sealed class ViewModelTests
             await model.AccountCommand.ExecuteAsync(null);
             Assert.True(model.IsSignedIn);
             Assert.Equal(2, model.Accounts.Count);
+            api.BeforeSignOut = async () =>
+            {
+                Assert.Equal(otherAccount, Assert.Single(model.Accounts));
+                Assert.Null(credentials.Value);
+                var saved = await settings.LoadAsync();
+                Assert.Equal(new[] { otherAccount, otherServerAccount }, saved.Accounts);
+                Assert.Empty(saved.Servers.Single(server => server.Id == profile.Id).UserName);
+            };
 
             await model.SignOutCommand.ExecuteAsync(null);
 
@@ -161,6 +169,67 @@ public sealed class ViewModelTests
             Assert.Equal(otherAccount, Assert.Single(reopened.Accounts));
             reopened.SelectedServer = reopened.Servers.Single(server => server.Id == otherProfile.Id);
             Assert.Equal(otherServerAccount, Assert.Single(reopened.Accounts));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SavedAccountCanBeRemovedWithoutAnActiveSession(bool serverUnavailable)
+    {
+        string directory = Directory.CreateTempSubdirectory("eden-launcher-remove-account-").FullName;
+        try
+        {
+            var profile = new ServerProfile { UserName = "Developer" };
+            var account = new SavedAccount(profile.Id, 1000003, profile.UserName, true);
+            var settings = new SettingsStore(directory);
+            await settings.SaveAsync(new([profile], profile.Id, [account]));
+            ICredentialStore credentials = serverUnavailable
+                ? new Credentials { Value = "old refresh" }
+                : new WindowsCredentialStore(Path.Combine(directory, "credentials"));
+            var api = new Api { Offline = serverUnavailable };
+            var model = new MainViewModel(settings, credentials, new Installation(), new Launcher(), (_, _) => api);
+            await model.InitializeAsync();
+            var window = new MainWindow { DataContext = model };
+            window.Show();
+            try
+            {
+                var accounts = window.GetVisualDescendants().OfType<ListBox>().Single(list => list.Classes.Contains("accounts"));
+                accounts.SelectedItem = account;
+                Assert.False(model.IsSignedIn);
+                Assert.Equal(!serverUnavailable, model.ShowAccountDialog);
+                if (model.ShowAccountDialog)
+                {
+                    model.CloseAccountCommand.Execute(null);
+                    Assert.False(model.ShowAccountDialog);
+                }
+                var remove = window.GetVisualDescendants().OfType<Button>().Single(button => button.Command == model.SignOutCommand);
+                Assert.True(remove.IsVisible);
+                Assert.True(remove.IsEnabled);
+                Assert.Equal("Remove account", remove.Content);
+
+                await model.SignOutCommand.ExecuteAsync(null);
+
+                Assert.Empty(accounts.Items);
+                Assert.False(remove.IsVisible);
+                Assert.False(model.IsError);
+                Assert.False(api.SignedOut);
+                Assert.Null(credentials.Read(profile.ApiAddress, account.UserName));
+            }
+            finally
+            {
+                window.Close();
+            }
+            api.Offline = false;
+            var reopened = new MainViewModel(settings, credentials, new Installation(), new Launcher(), (_, _) => api);
+            await reopened.InitializeAsync();
+            Assert.Empty(reopened.Accounts);
+            Assert.Empty(reopened.UserName);
+            Assert.False(reopened.IsSignedIn);
         }
         finally
         {
@@ -510,6 +579,7 @@ public sealed class ViewModelTests
         public AccountRequest? Registration { get; private set; }
         public bool SignedOut { get; private set; }
         public bool FailSignOut { get; set; }
+        public Func<Task>? BeforeSignOut { get; set; }
         public Task<ServerReply>? PendingServer { get; set; }
         public Exception? ServerError { get; set; }
         public bool RejectRefresh { get; set; }
@@ -544,10 +614,17 @@ public sealed class ViewModelTests
                 : Task.FromResult(new SessionReply(1000003, "Developer", "access-renewed", SessionExpiry, "refresh", true));
         }
 
-        public Task SignOutAsync(string accessToken, CancellationToken cancellation = default)
+        public async Task SignOutAsync(string accessToken, CancellationToken cancellation = default)
         {
             SignedOut = true;
-            return FailSignOut ? Task.FromException(new HttpRequestException("offline")) : Task.CompletedTask;
+            if (BeforeSignOut is not null)
+            {
+                await BeforeSignOut();
+            }
+            if (FailSignOut)
+            {
+                throw new HttpRequestException("offline");
+            }
         }
 
         public Task<LaunchReply> LaunchAsync(string accessToken, LaunchRequest request, CancellationToken cancellation = default)
