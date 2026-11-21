@@ -6,6 +6,9 @@ The launcher prepares an isolated build 3662168 client, creates standard or invi
 
 The account header contains **Add account**. Compact cards highlight the selected account, with **Sign out** below the list and launch-group controls together underneath. The wider game panel shows the selected account and running-client count above the full-width **Play** button. Client preparation remains in **Client settings**; the extra preparation shortcut appears only while setup is needed.
 
+Choose **Server admin** in the top bar to open the connected server’s administration page in your browser.
+The link appears when the server publishes an administration address.
+
 ## Native chat
 
 For updated Eden servers, Play automatically adds the server’s public chat certificate to the prepared client copy’s certifi bundle. The server signs the matching certificate-bundle hash while keeping every other client file pinned. Existing public roots are preserved and repeated launches are idempotent. This enables native TLS chat on TCP 5222 without modifying the source EVE installation, installing an OS trust root or disabling TLS. When switching to a server that omits the optional certificate field, Play restores the exact pinned original bundle, including clients modified by earlier launchers. Unrecognized bundle edits are rejected before changing files. The server and launcher both need their chat updates rebuilt.

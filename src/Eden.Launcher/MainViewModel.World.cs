@@ -12,6 +12,11 @@ public partial class MainViewModel
     [NotifyPropertyChangedFor(nameof(CanOpenWorldSetup))]
     private Uri? _worldSetupUri;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanOpenAdministration))]
+    private Uri? _administrationUri;
+
+    public bool CanOpenAdministration => AdministrationUri is not null;
     public bool WorldReady => ServerWorldStatus == WorldStatus.Ready;
     public bool WorldUnavailable => ServerWorldStatus is not null && !WorldReady;
     public bool CanOpenAccount => CanWork && WorldReady;
@@ -42,6 +47,7 @@ public partial class MainViewModel
     {
         ServerWorldStatus = state;
         WorldSetupUri = setupUri;
+        AdministrationUri = null;
         _session = null;
         _sessionAddress = null;
         string prefix = ApiAddress + "\n";

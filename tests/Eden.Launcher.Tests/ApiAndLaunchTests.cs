@@ -25,6 +25,7 @@ public sealed class ApiAndLaunchTests
         var reply = JsonSerializer.Deserialize<ServerReply>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         Assert.Equal(WorldStatus.Ready, reply!.WorldStatus);
         Assert.Null(reply.SetupUri("http://127.0.0.1:26002"));
+        Assert.Null(reply.AdministrationUri("http://127.0.0.1:26002"));
     }
 
     [Theory]
@@ -33,7 +34,7 @@ public sealed class ApiAndLaunchTests
     [InlineData("file:///C:/world/setup", false)]
     [InlineData("https://user:secret@eden.example.com/world/setup", false)]
     [InlineData("https://eden.example.com:26003/world/setup", true)]
-    public void SetupLinksFromRemoteServersRequirePublicHttps(string url, bool allowed)
+    public void AdministrationLinksFromRemoteServersRequirePublicHttps(string url, bool allowed)
     {
         ServerReply reply = new(
             "eden",
@@ -43,9 +44,12 @@ public sealed class ApiAndLaunchTests
             "eden.example.com:26000",
             "https://eden.example.com:26001",
             WorldStatus: WorldStatus.SetupRequired,
-            WorldSetupUrl: url
+            WorldSetupUrl: url,
+            AdministrationUrl: url
         );
-        Assert.Equal(allowed, reply.SetupUri("https://eden.example.com:26002") is not null);
+        const string apiAddress = "https://eden.example.com:26002";
+        Assert.Equal(allowed, reply.SetupUri(apiAddress) is not null);
+        Assert.Equal(allowed, reply.AdministrationUri(apiAddress) is not null);
     }
 
     [Fact]

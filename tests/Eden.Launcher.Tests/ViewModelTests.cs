@@ -80,10 +80,18 @@ public sealed class ViewModelTests
     [AvaloniaFact]
     public async Task WorldSetupBlocksAccountsUntilTheServerIsReady()
     {
-        const string setupUrl = "http://127.0.0.1:26003/world/setup";
+        const string administrationUrl = "http://127.0.0.1:26003";
+        const string setupUrl = administrationUrl + "/world/setup";
         var api = new Api
         {
-            PendingServer = Task.FromResult(Api.Server with { WorldStatus = WorldStatus.SetupRequired, WorldSetupUrl = setupUrl }),
+            PendingServer = Task.FromResult(
+                Api.Server with
+                {
+                    WorldStatus = WorldStatus.SetupRequired,
+                    WorldSetupUrl = setupUrl,
+                    AdministrationUrl = administrationUrl,
+                }
+            ),
         };
         var credentials = new Credentials();
         var model = Create(api, credentials);
@@ -109,15 +117,19 @@ public sealed class ViewModelTests
                 window.GetVisualDescendants().OfType<Button>(),
                 button => Equals(button.Content, "Open world setup") && button.IsVisible
             );
+            var admin = window.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, "Server admin"));
+            Assert.False(admin.IsVisible);
             api.PendingServer = Task.FromResult(Api.Server with { WorldStatus = WorldStatus.Starting });
             await model.ConnectCommand.ExecuteAsync(null);
             Assert.Equal("Starting world", model.WorldHeading);
             Assert.Null(model.WorldSetupUri);
             Assert.False(model.OpenAccountCommand.CanExecute(null));
 
-            api.PendingServer = null;
+            api.PendingServer = Task.FromResult(Api.Server with { AdministrationUrl = administrationUrl });
             await model.ConnectCommand.ExecuteAsync(null);
             Assert.True(model.WorldReady);
+            Assert.Equal(new Uri(administrationUrl), model.AdministrationUri);
+            Assert.True(admin.IsVisible);
             Assert.True(model.OpenAccountCommand.CanExecute(null));
             model.OpenAccountCommand.Execute(null);
             Assert.True(model.ShowAccountDialog);
@@ -136,6 +148,8 @@ public sealed class ViewModelTests
             Assert.Single(model.Accounts);
             Assert.Equal(0, api.RefreshCalls);
             Assert.Equal("Ask the server administrator to complete world setup.", model.WorldInstructions);
+            Assert.Null(model.AdministrationUri);
+            Assert.False(admin.IsVisible);
         }
         finally
         {

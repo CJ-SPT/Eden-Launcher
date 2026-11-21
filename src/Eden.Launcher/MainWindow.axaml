@@ -52,16 +52,24 @@
   </Window.Styles>
   <Grid RowDefinitions="52,*,50" ColumnDefinitions="72,*">
     <Border Grid.ColumnSpan="2" Background="#111111">
-      <Grid ColumnDefinitions="120,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto">
+      <Grid ColumnDefinitions="120,Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto">
         <Border Background="Transparent" PointerPressed="DragWindow">
           <TextBlock Text="E D E N" FontSize="13" VerticalAlignment="Center" Margin="22,0,0,0" />
         </Border>
         <Button Grid.Column="1" Content="News" Classes="nav" Click="OpenNews" />
         <Button Grid.Column="2" Content="Accounts" Classes="nav" Command="{Binding OpenAccountCommand}" IsEnabled="{Binding CanWork}" />
         <Button Grid.Column="3" Content="Support" Classes="nav" Click="OpenSupport" />
-        <Border Grid.Column="4" Background="Transparent" PointerPressed="DragWindow" />
         <Button
-          Grid.Column="5"
+          Grid.Column="4"
+          Content="Server admin"
+          Classes="nav"
+          IsVisible="{Binding CanOpenAdministration}"
+          Click="OpenAdministration"
+          ToolTip.Tip="Open the server administration page in your browser"
+        />
+        <Border Grid.Column="5" Background="Transparent" PointerPressed="DragWindow" />
+        <Button
+          Grid.Column="6"
           Content="⚙"
           Classes="nav"
           Command="{Binding OpenSettingsCommand}"
@@ -69,9 +77,9 @@
           FontSize="20"
           ToolTip.Tip="Server and client settings"
         />
-        <Button Grid.Column="6" Content="−" Classes="nav" Click="Minimize" AutomationProperties.Name="Minimize" />
-        <Button Grid.Column="7" Content="□" Classes="nav" Click="Maximize" AutomationProperties.Name="Maximize" />
-        <Button Grid.Column="8" Content="×" Classes="nav" Click="CloseWindow" AutomationProperties.Name="Close launcher" />
+        <Button Grid.Column="7" Content="−" Classes="nav" Click="Minimize" AutomationProperties.Name="Minimize" />
+        <Button Grid.Column="8" Content="□" Classes="nav" Click="Maximize" AutomationProperties.Name="Maximize" />
+        <Button Grid.Column="9" Content="×" Classes="nav" Click="CloseWindow" AutomationProperties.Name="Close launcher" />
       </Grid>
     </Border>
     <Border Grid.Row="1" Grid.RowSpan="2" Background="#0E0F10">

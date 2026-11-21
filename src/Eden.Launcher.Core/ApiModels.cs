@@ -60,26 +60,28 @@ public sealed record ServerReply(
     SkillClientPackage? SkillPackage = null,
     ModSetPackage? ModSet = null,
     string WorldStatus = Eden.Launcher.Core.WorldStatus.Ready,
-    string? WorldSetupUrl = null
+    string? WorldSetupUrl = null,
+    string? AdministrationUrl = null
 )
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public SkillClientPackage? ClientPackage => ModSet?.AsArchive() ?? SkillPackage;
 
-    public Uri? SetupUri(string apiAddress)
+    public Uri? SetupUri(string apiAddress) =>
+        WorldStatus == Eden.Launcher.Core.WorldStatus.SetupRequired ? BrowserUri(WorldSetupUrl, apiAddress) : null;
+
+    public Uri? AdministrationUri(string apiAddress) => BrowserUri(AdministrationUrl, apiAddress);
+
+    private static Uri? BrowserUri(string? address, string apiAddress)
     {
-        if (
-            WorldStatus != Eden.Launcher.Core.WorldStatus.SetupRequired
-            || !Uri.TryCreate(WorldSetupUrl, UriKind.Absolute, out var setup)
-            || !string.IsNullOrEmpty(setup.UserInfo)
-        )
+        if (!Uri.TryCreate(address, UriKind.Absolute, out var uri) || !string.IsNullOrEmpty(uri.UserInfo))
         {
             return null;
         }
-        if (setup.IsLoopback && !LauncherApiClient.ParseEndpoint(apiAddress).IsLoopback)
+        if (uri.IsLoopback && !LauncherApiClient.ParseEndpoint(apiAddress).IsLoopback)
         {
             return null;
         }
-        return setup.Scheme == Uri.UriSchemeHttps || (setup.IsLoopback && setup.Scheme == Uri.UriSchemeHttp) ? setup : null;
+        return uri.Scheme == Uri.UriSchemeHttps || (uri.IsLoopback && uri.Scheme == Uri.UriSchemeHttp) ? uri : null;
     }
 }

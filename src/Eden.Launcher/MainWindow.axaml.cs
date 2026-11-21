@@ -37,11 +37,17 @@ public sealed partial class MainWindow : Window
     private void OpenSupport(object? sender, RoutedEventArgs args) =>
         Process.Start(new ProcessStartInfo("https://github.com/CJ-SPT/Eden/issues") { UseShellExecute = true });
 
-    private async void OpenWorldSetup(object? sender, RoutedEventArgs args)
+    private async void OpenWorldSetup(object? sender, RoutedEventArgs args) =>
+        await OpenAdministrationLinkAsync((DataContext as MainViewModel)?.WorldSetupUri);
+
+    private async void OpenAdministration(object? sender, RoutedEventArgs args) =>
+        await OpenAdministrationLinkAsync((DataContext as MainViewModel)?.AdministrationUri);
+
+    private async Task OpenAdministrationLinkAsync(Uri? address)
     {
-        if (DataContext is MainViewModel { WorldSetupUri: { } setup } viewModel && !await Launcher.LaunchUriAsync(setup))
+        if (address is not null && DataContext is MainViewModel viewModel && !await Launcher.LaunchUriAsync(address))
         {
-            viewModel.Status = "Open this address in your browser: " + setup.AbsoluteUri;
+            viewModel.Status = "Open this address in your browser: " + address.AbsoluteUri;
         }
     }
 

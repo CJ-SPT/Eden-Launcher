@@ -384,6 +384,7 @@ public partial class MainViewModel : ObservableObject
     {
         ServerWorldStatus = null;
         WorldSetupUri = null;
+        AdministrationUri = null;
         _session = null;
         _sessionAddress = null;
         IsConnected = false;
@@ -432,6 +433,7 @@ public partial class MainViewModel : ObservableObject
         }
         ServerWorldStatus = WorldStatus.Ready;
         WorldSetupUri = null;
+        AdministrationUri = server.AdministrationUri(ApiAddress);
         ConnectionStatus = "CONNECTED · " + server.Name;
         Status = IsSignedIn ? "Connected. Your account is ready." : "Connected. Sign in or create an account.";
     }
