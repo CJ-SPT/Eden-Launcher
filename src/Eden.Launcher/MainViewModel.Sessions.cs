@@ -6,7 +6,7 @@ public partial class MainViewModel
 {
     private async Task RestoreRememberedSessionAsync(CancellationToken cancellation)
     {
-        if (IsSignedIn)
+        if (!WorldReady || IsSignedIn)
         {
             return;
         }

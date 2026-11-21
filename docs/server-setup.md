@@ -6,6 +6,11 @@ Use the Eden server revision containing the `/api/v1` launcher API. Back up the 
 
 Start Eden normally. The defaults are game TCP `127.0.0.1:26000`, public gateway HTTP/2 `127.0.0.1:26001`, and launcher HTTP API `127.0.0.1:26002`. The launcher uses the API address; game and gateway addresses come from server metadata.
 
+On the first start, the server console directs you to World setup in administration. Choose **Established Universe** or
+**Fresh Universe** and start the world. If the launcher shows **World setup required**, open the admin link or ask the server
+operator to finish setup. Choose **Check again** once the server is ready. The same flow applies after a wipe that calls for new
+settings. Existing game accounts can sign in again after the replacement is ready.
+
 For the existing seeded accounts, run the server's interactive command in a terminal:
 
 ```powershell

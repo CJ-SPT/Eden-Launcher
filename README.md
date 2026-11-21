@@ -16,7 +16,8 @@ Extract the Windows x64 release ZIP and open `Eden.Desktop.exe`. No separate .NE
 
 1. Open **Settings**, enter the Eden launcher API address, and choose **Connect**. The local default is `http://127.0.0.1:26002`. For a
    remote server with a private CA, select its CA certificate with **Browse…**, or choose **Download CA** and verify the fingerprint
-   provided by the server operator.
+   provided by the server operator. If **World setup required** appears, use **Open world setup** if you administer the server.
+   Once the administrator creates the world, choose **Check again** to enable account creation and sign-in.
 2. Select a prepared Eden client containing `tq` and `ResFiles`, then choose **Use this client**. Alternatively, expand **Prepare a new Eden client**, choose the pinned source and an empty destination, and prepare the copy. Other EVE builds are rejected.
 3. Choose **Add account** and sign in or create an account with a 6–128 character password. **Remember me on this computer** is
    selected by default. Clear it for a temporary sign-in on a shared computer. Developer accounts require the server operator's invitation code.

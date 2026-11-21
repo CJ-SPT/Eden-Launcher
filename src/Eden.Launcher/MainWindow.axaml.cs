@@ -37,6 +37,14 @@ public sealed partial class MainWindow : Window
     private void OpenSupport(object? sender, RoutedEventArgs args) =>
         Process.Start(new ProcessStartInfo("https://github.com/CJ-SPT/Eden/issues") { UseShellExecute = true });
 
+    private async void OpenWorldSetup(object? sender, RoutedEventArgs args)
+    {
+        if (DataContext is MainViewModel { WorldSetupUri: { } setup } viewModel && !await Launcher.LaunchUriAsync(setup))
+        {
+            viewModel.Status = "Open this address in your browser: " + setup.AbsoluteUri;
+        }
+    }
+
     private async void BrowseCertificateAuthority(object? sender, RoutedEventArgs args)
     {
         var result = await StorageProvider.OpenFilePickerAsync(

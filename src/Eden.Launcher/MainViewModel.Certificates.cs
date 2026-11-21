@@ -58,7 +58,10 @@ public partial class MainViewModel
             CertificateAuthorityPath = path;
             ClearCertificateDownload();
             SetConnected(server);
-            Status = "Verified the CA fingerprint and connected. The certificate was saved to this server profile.";
+            if (WorldReady)
+            {
+                Status = "Verified the CA fingerprint and connected. The certificate was saved to this server profile.";
+            }
         });
 
     [RelayCommand]

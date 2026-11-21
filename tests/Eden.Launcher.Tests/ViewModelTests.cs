@@ -78,6 +78,72 @@ public sealed class ViewModelTests
     }
 
     [AvaloniaFact]
+    public async Task WorldSetupBlocksAccountsUntilTheServerIsReady()
+    {
+        const string setupUrl = "http://127.0.0.1:26003/world/setup";
+        var api = new Api
+        {
+            PendingServer = Task.FromResult(Api.Server with { WorldStatus = WorldStatus.SetupRequired, WorldSetupUrl = setupUrl }),
+        };
+        var credentials = new Credentials();
+        var model = Create(api, credentials);
+        await model.InitializeAsync();
+        Assert.True(model.IsConnected);
+        Assert.True(model.WorldUnavailable);
+        Assert.Equal(new Uri(setupUrl), model.WorldSetupUri);
+        Assert.False(model.OpenAccountCommand.CanExecute(null));
+        Assert.False(model.CanEditAccount);
+
+        model.UserName = "Test Pilot";
+        model.Password = model.ConfirmPassword = "secret";
+        model.CreateAccount = true;
+        await model.AccountCommand.ExecuteAsync(null);
+        Assert.Null(api.Registration);
+        Assert.False(model.IsSignedIn);
+        Assert.Equal(0, api.SignInCalls);
+        var window = new MainWindow { DataContext = model };
+        window.Show();
+        try
+        {
+            Assert.Contains(
+                window.GetVisualDescendants().OfType<Button>(),
+                button => Equals(button.Content, "Open world setup") && button.IsVisible
+            );
+            api.PendingServer = Task.FromResult(Api.Server with { WorldStatus = WorldStatus.Starting });
+            await model.ConnectCommand.ExecuteAsync(null);
+            Assert.Equal("Starting world", model.WorldHeading);
+            Assert.Null(model.WorldSetupUri);
+            Assert.False(model.OpenAccountCommand.CanExecute(null));
+
+            api.PendingServer = null;
+            await model.ConnectCommand.ExecuteAsync(null);
+            Assert.True(model.WorldReady);
+            Assert.True(model.OpenAccountCommand.CanExecute(null));
+            model.OpenAccountCommand.Execute(null);
+            Assert.True(model.ShowAccountDialog);
+            model.UserName = "Test Pilot";
+            model.Password = model.ConfirmPassword = "secret";
+            model.CreateAccount = true;
+            await model.AccountCommand.ExecuteAsync(null);
+            Assert.NotNull(api.Registration);
+            Assert.True(model.IsSignedIn);
+            Assert.Equal(1, api.SignInCalls);
+
+            api.PendingServer = Task.FromResult(Api.Server with { WorldStatus = WorldStatus.SetupRequired });
+            await model.ConnectCommand.ExecuteAsync(null);
+            Assert.False(model.IsSignedIn);
+            Assert.False(model.ShowAccountDialog);
+            Assert.Single(model.Accounts);
+            Assert.Equal(0, api.RefreshCalls);
+            Assert.Equal("Ask the server administrator to complete world setup.", model.WorldInstructions);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [AvaloniaFact]
     public async Task PlayRequiresSignInAndVerifiedClientAndSecretsAreCleared()
     {
         var api = new Api();
@@ -586,6 +652,7 @@ public sealed class ViewModelTests
         public bool RejectNextAccess { get; set; }
         public long SessionExpiry { get; set; } = long.MaxValue;
         public int RefreshCalls { get; private set; }
+        public int SignInCalls { get; private set; }
         public string? LaunchedAccess { get; private set; }
         public List<string> LaunchAttempts { get; } = [];
         public static ServerReply Server => new("test", "Test", 1, ClientBuild.Number, "localhost:26000", "http://localhost:26001");
@@ -601,10 +668,13 @@ public sealed class ViewModelTests
             return Task.FromResult(new AccountReply(1000003, request.UserName, request.Developer));
         }
 
-        public Task<SessionReply> SignInAsync(SignInRequest request, CancellationToken cancellation = default) =>
-            Task.FromResult(
+        public Task<SessionReply> SignInAsync(SignInRequest request, CancellationToken cancellation = default)
+        {
+            SignInCalls++;
+            return Task.FromResult(
                 new SessionReply(1000003, request.UserName, "access", SessionExpiry, request.RememberMe ? "refresh" : null, true)
             );
+        }
 
         public Task<SessionReply> RefreshAsync(string refreshToken, CancellationToken cancellation = default)
         {

@@ -34,7 +34,7 @@ public partial class MainViewModel
     private string _groupStatus = "Create a group to launch accounts together.";
 
     public bool CanEditGroup => CanWork && SelectedGroup is not null;
-    public bool CanLaunchGroup => CanEditGroup && IsConnected && ClientReady && SelectedGroup!.AccountIds.Count > 0;
+    public bool CanLaunchGroup => CanEditGroup && WorldReady && ClientReady && SelectedGroup!.AccountIds.Count > 0;
 
     private void RefreshGroups()
     {
@@ -148,7 +148,7 @@ public partial class MainViewModel
     private Task LaunchGroupAsync() =>
         RunAsync(async cancellation =>
         {
-            if (SelectedGroup is not { } group || !IsConnected || !ClientReady || _server is not { } server)
+            if (SelectedGroup is not { } group || !WorldReady || !ClientReady)
             {
                 throw new InvalidOperationException("Choose a group, connect to its server, and verify your client first.");
             }
@@ -163,7 +163,12 @@ public partial class MainViewModel
             int failed = 0;
             bool cancelled = false;
             using var api = _apiFactory(address, authority);
-            server = await api.ServerAsync(cancellation);
+            var server = await api.ServerAsync(cancellation);
+            SetConnected(server);
+            if (!WorldReady)
+            {
+                return;
+            }
             foreach (long accountId in members)
             {
                 if (cancellation.IsCancellationRequested)
@@ -206,6 +211,10 @@ public partial class MainViewModel
                 {
                     failed++;
                     GroupResults.Add($"{name}: server timed out. Try again.");
+                }
+                catch (LauncherApiException error) when (error.Code is "world_setup_required" or "world_starting")
+                {
+                    throw;
                 }
                 catch (Exception error) when (IsOperationError(error))
                 {

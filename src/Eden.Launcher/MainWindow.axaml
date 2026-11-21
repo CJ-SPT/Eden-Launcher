@@ -144,6 +144,20 @@
                 />
               </Grid>
             </Border>
+            <Border
+              IsVisible="{Binding WorldUnavailable}"
+              Background="#C00C1013"
+              BorderBrush="#59C7CF"
+              BorderThickness="2,0,0,0"
+              Padding="16"
+            >
+              <StackPanel Spacing="10">
+                <TextBlock Text="{Binding WorldHeading}" FontSize="18" />
+                <TextBlock Text="{Binding WorldInstructions}" Classes="muted" TextWrapping="Wrap" />
+                <Button Content="Open world setup" IsVisible="{Binding CanOpenWorldSetup}" Click="OpenWorldSetup" />
+                <Button Content="Check again" Command="{Binding ConnectCommand}" Classes="nav compact" />
+              </StackPanel>
+            </Border>
             <ListBox
               Classes="accounts"
               ItemsSource="{Binding Accounts}"
@@ -178,7 +192,7 @@
               </ListBox.ItemTemplate>
             </ListBox>
             <Border
-              IsVisible="{Binding !HasAccounts}"
+              IsVisible="{Binding ShowFirstAccountHint}"
               Background="#C00C1013"
               BorderBrush="#43494D"
               BorderThickness="2,0,0,0"

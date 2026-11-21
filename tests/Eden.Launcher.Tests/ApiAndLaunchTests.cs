@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Net.Sockets;
+using System.Text.Json;
 using Eden.Launcher.Core;
 
 namespace Eden.Launcher.Tests;
@@ -13,6 +14,39 @@ public sealed class ApiAndLaunchTests
     [InlineData("file:///C:/secret")]
     public void RemoteCredentialsRequireAnHttpsOrigin(string address) =>
         Assert.Throws<InvalidDataException>(() => new LauncherApiClient(address));
+
+    [Fact]
+    public void LegacyServerMetadataDefaultsToWorldReady()
+    {
+        const string json = """
+            {"serverId":"eden","name":"Eden","apiVersion":2,"clientBuild":3662168,
+             "gameAddress":"127.0.0.1:26000","gatewayAddress":"http://127.0.0.1:26001"}
+            """;
+        var reply = JsonSerializer.Deserialize<ServerReply>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        Assert.Equal(WorldStatus.Ready, reply!.WorldStatus);
+        Assert.Null(reply.SetupUri("http://127.0.0.1:26002"));
+    }
+
+    [Theory]
+    [InlineData("http://127.0.0.1:26003/world/setup", false)]
+    [InlineData("http://eden.example.com/world/setup", false)]
+    [InlineData("file:///C:/world/setup", false)]
+    [InlineData("https://user:secret@eden.example.com/world/setup", false)]
+    [InlineData("https://eden.example.com:26003/world/setup", true)]
+    public void SetupLinksFromRemoteServersRequirePublicHttps(string url, bool allowed)
+    {
+        ServerReply reply = new(
+            "eden",
+            "Eden",
+            2,
+            ClientBuild.Number,
+            "eden.example.com:26000",
+            "https://eden.example.com:26001",
+            WorldStatus: WorldStatus.SetupRequired,
+            WorldSetupUrl: url
+        );
+        Assert.Equal(allowed, reply.SetupUri("https://eden.example.com:26002") is not null);
+    }
 
     [Fact]
     public async Task NamedErrorsSurviveWithoutExposingTheResponseBody()

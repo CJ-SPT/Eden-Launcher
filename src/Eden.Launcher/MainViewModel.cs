@@ -16,7 +16,6 @@ public partial class MainViewModel : ObservableObject
     private readonly Func<string, string?, ILauncherApiClient> _apiFactory;
     private readonly ClientBuild _build;
     private SessionReply? _session;
-    private ServerReply? _server;
     private CancellationTokenSource? _operation;
     private bool _loading;
     private bool _updatingProfile;
@@ -114,14 +113,16 @@ public partial class MainViewModel : ObservableObject
 
     [ObservableProperty]
     private int _runningCount;
-    public bool CanPlay => !IsBusy && IsConnected && IsSignedIn && ClientReady;
+    public bool CanPlay => !IsBusy && WorldReady && IsSignedIn && ClientReady;
     public bool CanWork => !IsBusy;
-    public bool CanEditAccount => !IsBusy && !IsSignedIn;
+    public bool CanEditAccount => CanOpenAccount && !IsSignedIn;
     public bool ShowConfirmation => CreateAccount && !IsSignedIn;
     public bool ShowDeveloperCode => CreateAccount && DeveloperAccount && !IsSignedIn;
     public string AccountAction => CreateAccount ? "Create account" : "Sign in";
     public string PlayLabel =>
         IsBusy ? "PLEASE WAIT"
+        : WorldUnavailable ? "CHECK WORLD STATUS"
+        : !IsConnected ? "CONNECT"
         : !IsSignedIn ? "ADD ACCOUNT"
         : !ClientReady ? "SET UP CLIENT"
         : "PLAY";
@@ -189,6 +190,7 @@ public partial class MainViewModel : ObservableObject
             Accounts.Add(account);
         }
         OnPropertyChanged(nameof(HasAccounts));
+        OnPropertyChanged(nameof(ShowFirstAccountHint));
         LoadGroups();
         ClientReady = false;
         if (!_loading)
@@ -224,6 +226,7 @@ public partial class MainViewModel : ObservableObject
     partial void OnIsBusyChanged(bool value)
     {
         OnPropertyChanged(nameof(CanWork));
+        OnPropertyChanged(nameof(CanOpenAccount));
         OnPropertyChanged(nameof(CanEditAccount));
         OnPropertyChanged(nameof(PlayLabel));
         NewGroupCommand.NotifyCanExecuteChanged();
@@ -285,6 +288,10 @@ public partial class MainViewModel : ObservableObject
             {
                 await ConnectCoreAsync(cancellation);
             }
+            if (!WorldReady)
+            {
+                return;
+            }
             string key = ApiAddress + "\n" + account.AccountId;
             if (
                 _sessions.TryGetValue(key, out var cached)
@@ -317,10 +324,10 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void CloseSettings() => ShowSettings = false;
 
-    [RelayCommand(CanExecute = nameof(CanWork))]
+    [RelayCommand(CanExecute = nameof(CanOpenAccount))]
     private void OpenAccount()
     {
-        if (IsBusy)
+        if (!CanOpenAccount)
         {
             return;
         }
@@ -345,32 +352,45 @@ public partial class MainViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task PrimaryActionAsync()
+    private async Task PrimaryActionAsync()
     {
         if (IsBusy)
         {
-            return Task.CompletedTask;
+            return;
+        }
+        if (!WorldReady)
+        {
+            await ConnectAsync();
+            if (WorldReady && !IsSignedIn)
+            {
+                OpenAccount();
+            }
+            return;
         }
         if (!IsSignedIn)
         {
             OpenAccount();
-            return Task.CompletedTask;
+            return;
         }
         if (!ClientReady)
         {
             ShowSettings = true;
-            return Task.CompletedTask;
+            return;
         }
-        return PlayAsync();
+        await PlayAsync();
     }
 
     private void ResetConnection()
     {
-        _server = null;
+        ServerWorldStatus = null;
+        WorldSetupUri = null;
         _session = null;
         _sessionAddress = null;
         IsConnected = false;
         IsSignedIn = false;
+        ShowAccountDialog = false;
+        _accountBeforeAdd = null;
+        CreateAccount = false;
         Password = "";
         ConfirmPassword = "";
         DeveloperCode = "";
@@ -384,6 +404,10 @@ public partial class MainViewModel : ObservableObject
     private async Task ConnectAndRestoreAsync(CancellationToken cancellation)
     {
         await ConnectCoreAsync(cancellation);
+        if (!WorldReady)
+        {
+            return;
+        }
         if (!ClientReady && !string.IsNullOrWhiteSpace(ClientRoot))
         {
             await ValidateClientCoreAsync(cancellation);
@@ -400,8 +424,14 @@ public partial class MainViewModel : ObservableObject
 
     private void SetConnected(ServerReply server)
     {
-        _server = server;
         IsConnected = true;
+        if (server.WorldStatus != WorldStatus.Ready)
+        {
+            WaitForWorld(server.WorldStatus ?? WorldStatus.Starting, server.SetupUri(ApiAddress));
+            return;
+        }
+        ServerWorldStatus = WorldStatus.Ready;
+        WorldSetupUri = null;
         ConnectionStatus = "CONNECTED · " + server.Name;
         Status = IsSignedIn ? "Connected. Your account is ready." : "Connected. Sign in or create an account.";
     }
@@ -475,6 +505,10 @@ public partial class MainViewModel : ObservableObject
             {
                 await ConnectCoreAsync(cancellation);
             }
+            if (!WorldReady)
+            {
+                return;
+            }
             using var api = _apiFactory(ApiAddress, CertificateAuthorityPath.Trim());
             if (CreateAccount)
             {
@@ -522,6 +556,7 @@ public partial class MainViewModel : ObservableObject
         _accountBeforeAdd = null;
         ShowAccountDialog = false;
         OnPropertyChanged(nameof(HasAccounts));
+        OnPropertyChanged(nameof(ShowFirstAccountHint));
         await SaveCoreAsync();
     }
 
@@ -562,6 +597,7 @@ public partial class MainViewModel : ObservableObject
             AccountStatus = "Sign in to your Eden account";
             Accounts.Remove(account);
             OnPropertyChanged(nameof(HasAccounts));
+            OnPropertyChanged(nameof(ShowFirstAccountHint));
             Status = "Account removed from this launcher.";
             if (session is null)
             {
@@ -622,7 +658,11 @@ public partial class MainViewModel : ObservableObject
             var account = SelectedAccount ?? throw new InvalidOperationException("Choose an account before launching the game.");
             using var api = _apiFactory(address, authority);
             var server = await api.ServerAsync(cancellation);
-            _server = server;
+            SetConnected(server);
+            if (!WorldReady)
+            {
+                return;
+            }
             var request = await _build.CreateLaunchRequestAsync(root, server, cancellation);
             var result = await RequestLaunchAsync(api, address, account, session, request, cancellation);
             if (result is null)
@@ -667,6 +707,10 @@ public partial class MainViewModel : ObservableObject
             Status = cancellation.IsCancellationRequested
                 ? "Operation cancelled. You can resume preparation later."
                 : "The server timed out.";
+        }
+        catch (LauncherApiException error) when (error.Code is "world_setup_required" or "world_starting")
+        {
+            WaitForWorld(error.Code == "world_setup_required" ? WorldStatus.SetupRequired : WorldStatus.Starting, null);
         }
         catch (Exception error) when (IsOperationError(error))
         {

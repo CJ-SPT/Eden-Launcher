@@ -42,6 +42,13 @@ public sealed record ModSetPackage(string Id, long Generation, string CodeSha256
 
 public sealed record ApiError(string Code, string Message);
 
+public static class WorldStatus
+{
+    public const string SetupRequired = "setup_required";
+    public const string Starting = "starting";
+    public const string Ready = "ready";
+}
+
 public sealed record ServerReply(
     string ServerId,
     string Name,
@@ -51,9 +58,28 @@ public sealed record ServerReply(
     string GatewayAddress,
     string? ChatCertificatePem = null,
     SkillClientPackage? SkillPackage = null,
-    ModSetPackage? ModSet = null
+    ModSetPackage? ModSet = null,
+    string WorldStatus = Eden.Launcher.Core.WorldStatus.Ready,
+    string? WorldSetupUrl = null
 )
 {
     [System.Text.Json.Serialization.JsonIgnore]
     public SkillClientPackage? ClientPackage => ModSet?.AsArchive() ?? SkillPackage;
+
+    public Uri? SetupUri(string apiAddress)
+    {
+        if (
+            WorldStatus != Eden.Launcher.Core.WorldStatus.SetupRequired
+            || !Uri.TryCreate(WorldSetupUrl, UriKind.Absolute, out var setup)
+            || !string.IsNullOrEmpty(setup.UserInfo)
+        )
+        {
+            return null;
+        }
+        if (setup.IsLoopback && !LauncherApiClient.ParseEndpoint(apiAddress).IsLoopback)
+        {
+            return null;
+        }
+        return setup.Scheme == Uri.UriSchemeHttps || (setup.IsLoopback && setup.Scheme == Uri.UriSchemeHttp) ? setup : null;
+    }
 }
